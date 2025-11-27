@@ -1,3 +1,5 @@
+import { Grid } from './grid.js';
+
 (async () => {
   const canvas = document.querySelector('canvas');
 
@@ -75,13 +77,13 @@
     }
   });
 
-
+  // Create grid instance
   const GRID_SIZE = 50;
-  const TOP_ROW = GRID_SIZE - 1;
-  const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
+  const grid = new Grid(GRID_SIZE);
+  const TOTAL_CELLS = grid.totalCells;
 
   // Create a uniform buffer that describes the grid.
-  const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE]);
+  const uniformArray = new Float32Array([grid.getSize(), grid.getSize()]);
   const uniformBuffer = device.createBuffer({
     label: "Grid Uniforms",
     size: uniformArray.byteLength,
@@ -90,15 +92,7 @@
   device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
 
   // Create storage buffer for cell colors (RGBA per cell)
-  // Initialize all cells to gray
-  const cellColors = new Float32Array(TOTAL_CELLS * 4); // 4 floats per color (RGBA)
-  for (let i = 0; i < TOTAL_CELLS; i++) {
-    cellColors[i * 4 + 0] = 0.5; // R
-    cellColors[i * 4 + 1] = 0.5; // G
-    cellColors[i * 4 + 2] = 0.5; // B
-    cellColors[i * 4 + 3] = 1.0; // A
-  }
-
+  const cellColors = grid.getCellColors();
   const cellColorsBuffer = device.createBuffer({
     label: "Cell Colors",
     size: cellColors.byteLength,
@@ -124,7 +118,7 @@
   // Function to render a frame
   function render() {
     // Update grid color buffer
-    device.queue.writeBuffer(cellColorsBuffer, 0, cellColors);
+    device.queue.writeBuffer(cellColorsBuffer, 0, grid.getCellColors());
 
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
@@ -144,122 +138,11 @@
     device.queue.submit([encoder.finish()]);
   }
 
-  // Helper function to check if a cell is colored (not gray)
-  function isColored(cellIndex) {
-    const r = cellColors[cellIndex * 4 + 0];
-    const g = cellColors[cellIndex * 4 + 1];
-    const b = cellColors[cellIndex * 4 + 2];
-    // Check if color is not gray (allowing for small floating point differences)
-    return !(Math.abs(r - 0.5) < 0.01 && Math.abs(g - 0.5) < 0.01 && Math.abs(b - 0.5) < 0.01);
-  }
-
-  // Helper function to get cell index from row and column
-  function getCellIndex(row, col) {
-    return row * GRID_SIZE + col;
-  }
-
-  // Helper function to get row and column from cell index
-  function getRowCol(cellIndex) {
-    return {
-      row: Math.floor(cellIndex / GRID_SIZE),
-      col: cellIndex % GRID_SIZE
-    };
-  }
-
-  // Helper function to set a cell to gray
-  function setCellGray(cellIndex) {
-    cellColors[cellIndex * 4 + 0] = 0.5;
-    cellColors[cellIndex * 4 + 1] = 0.5;
-    cellColors[cellIndex * 4 + 2] = 0.5;
-    cellColors[cellIndex * 4 + 3] = 1.0;
-  }
-
-  // Helper function to copy color from one cell to another
-  function copyCellColor(fromIndex, toIndex) {
-    cellColors[toIndex * 4 + 0] = cellColors[fromIndex * 4 + 0];
-    cellColors[toIndex * 4 + 1] = cellColors[fromIndex * 4 + 1];
-    cellColors[toIndex * 4 + 2] = cellColors[fromIndex * 4 + 2];
-    cellColors[toIndex * 4 + 3] = cellColors[fromIndex * 4 + 3];
-  }
-
-  // Helper function to check if a row is completely filled
-  function isRowFilled(row) {
-    for (let col = 0; col < GRID_SIZE; col++) {
-      const cellIndex = getCellIndex(row, col);
-      if (!isColored(cellIndex)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  // Helper function to clear a specific row (set all cells in row to gray)
-  function clearRow(row) {
-    for (let col = 0; col < GRID_SIZE; col++) {
-      const cellIndex = getCellIndex(row, col);
-      setCellGray(cellIndex);
-    }
-  }
-
-  // Function to generate a random color
-  function getRandomColor() {
-    return [
-      Math.random(), // R
-      Math.random(), // G
-      Math.random(), // B
-      1.0            // A
-    ];
-  }
-
-  function applyGravity() {
-    for (let row = 1; row < GRID_SIZE; row++) {
-      for (let col = 0; col < GRID_SIZE; col++) {
-        const cellIdx = getCellIndex(row, col);
-        if(! isColored(cellIdx)) continue;
-
-        const cellBelowIdx = getCellIndex(row - 1, col);
-        if (isColored(cellBelowIdx)) continue;
-
-        copyCellColor(cellIdx, cellBelowIdx);
-        setCellGray(cellIdx);
-      }
-    }
-  }
-
-  function colorRandomCell() {
-    const randomCol = Math.floor(Math.random() * GRID_SIZE);
-    const newCellIndex = getCellIndex(TOP_ROW, randomCol);
-
-    // Only add if the cell is gray (not already colored)
-    if (!isColored(newCellIndex)) {
-      const color = getRandomColor();
-      cellColors[newCellIndex * 4 + 0] = color[0];
-      cellColors[newCellIndex * 4 + 1] = color[1];
-      cellColors[newCellIndex * 4 + 2] = color[2];
-      cellColors[newCellIndex * 4 + 3] = color[3];
-    }
-  }
-
-  // Function to clear completed rows starting from the bottom and continuing upward
-  function clearCompletedRows() {
-    for (let row = 0; row < GRID_SIZE; row++) {
-      if (!isRowFilled(row)) break;
-
-      clearRow(row);
-    }
-  }
-
-  function updateGrid() {
-    clearCompletedRows();
-    applyGravity();
-    colorRandomCell();
-  }
-
   // Initial render
   render();
 
   setInterval(() => {
-    updateGrid();
+    grid.update();
     render();
   }, 1000/60);
 })();
