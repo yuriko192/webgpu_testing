@@ -138,6 +138,25 @@ import { Grid } from './grid.js';
     device.queue.submit([encoder.finish()]);
   }
 
+  // Add keyboard event listeners for arrow keys
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      if (grid.moveLeft()) {
+        render();
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      if (grid.moveRight()) {
+        render();
+      }
+      return;
+    }
+  });
+
   // Initial render
   render();
 
