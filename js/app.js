@@ -59,43 +59,13 @@
     ],
   }
 
+  // Load shader code from external file
+  const shaderResponse = await fetch('/shaders/cell.wgsl');
+  const shaderCode = await shaderResponse.text();
+
   const cellShaderModule = device.createShaderModule({
     label: "Cell shader",
-    code: /* wgsl */ `
-  struct VertexInput {
-    @location(0) pos: vec2f,
-    @builtin(instance_index) instance: u32,
-  };
-
-  struct VertexOutput {
-    @builtin(position) pos: vec4f,
-    @location(0) cellIdx: vec2f, // New line!
-  };
-
-  @group(0) @binding(0) var<uniform> grid: vec2f;
-
-  @vertex
-  fn vertexMain(
-    input: VertexInput,
-  ) -> VertexOutput{
-    let i = f32(input.instance);
-    let cellIndex = vec2f(i % grid.x, floor(i / grid.x));
-    let offset = cellIndex/grid*2;
-    let gridPos = (input.pos+1)/grid - 1 + offset;
-
-    var output: VertexOutput;
-    output.pos = vec4f(gridPos, 0.0, 1.0);
-    output.cellIdx = cellIndex;
-
-    return output;
-  }
-
-  @fragment
-  fn fragmentMain(input : VertexOutput) -> @location(0) vec4f {
-  let cellIdx = input.cellIdx / grid;
-   return vec4f(cellIdx, 1-cellIdx.x, 1); // (Red, Green, Blue, Alpha)
-  }
-  `,
+    code: shaderCode,
   })
 
   const cellPipeline = device.createRenderPipeline({
@@ -146,6 +116,5 @@
   pass.draw(vertices.length / 2, GRID_SIZE * GRID_SIZE); // 6 vertices
 
   pass.end();
-  const commandBuffer = encoder.finish();
-  device.queue.submit([commandBuffer]);
+  device.queue.submit([encoder.finish()]);
 })();
