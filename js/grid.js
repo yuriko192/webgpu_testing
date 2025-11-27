@@ -10,10 +10,11 @@ const TETROMINOES = {
 };
 
 export class Grid {
-  constructor(size = 50) {
-    this.size = size;
-    this.topRow = size - 1;
-    this.totalCells = size * size;
+  constructor(width = 10, height = 20) {
+    this.width = width;
+    this.height = height;
+    this.topRow = height - 1;
+    this.totalCells = width * height;
 
     // Initialize all cells to gray
     this.cellColors = new Float32Array(this.totalCells * 4); // 4 floats per color (RGBA)
@@ -34,14 +35,14 @@ export class Grid {
 
   // Helper function to get cell index from row and column
   getCellIndex(row, col) {
-    return row * this.size + col;
+    return row * this.width + col;
   }
 
   // Helper function to get row and column from cell index
   getRowCol(cellIndex) {
     return {
-      row: Math.floor(cellIndex / this.size),
-      col: cellIndex % this.size
+      row: Math.floor(cellIndex / this.width),
+      col: cellIndex % this.width
     };
   }
 
@@ -70,7 +71,7 @@ export class Grid {
 
   // Helper function to check if a row is completely filled
   isRowFilled(row) {
-    for (let col = 0; col < this.size; col++) {
+    for (let col = 0; col < this.width; col++) {
       const cellIndex = this.getCellIndex(row, col);
       if (!this.isColored(cellIndex)) {
         return false;
@@ -81,7 +82,7 @@ export class Grid {
 
   // Helper function to clear a specific row (set all cells in row to gray)
   clearRow(row) {
-    for (let col = 0; col < this.size; col++) {
+    for (let col = 0; col < this.width; col++) {
       const cellIndex = this.getCellIndex(row, col);
       this.setCellGray(cellIndex);
     }
@@ -161,8 +162,8 @@ export class Grid {
   // Apply gravity to every cell. unlinked from a tetromino state.
   // Considered end of game
   applyEndGravity() {
-    for (let row = 1; row < this.size; row++) {
-      for (let col = 0; col < this.size; col++) {
+    for (let row = 1; row < this.height; row++) {
+      for (let col = 0; col < this.width; col++) {
         const cellIdx = this.getCellIndex(row, col);
         if (!this.isColored(cellIdx)) continue;
 
@@ -207,7 +208,7 @@ export class Grid {
     }
 
     const shape = this.getRandomTetromino();
-    const centerCol = Math.floor(this.size / 2); // Center horizontally
+    const centerCol = Math.floor(this.width / 2); // Center horizontally
     const centerRow = this.topRow; // Start at the top
 
     // Check if we can place it
@@ -221,7 +222,7 @@ export class Grid {
 
   // Function to clear completed rows starting from the bottom and continuing upward
   clearCompletedRows() {
-    for (let row = 0; row < this.size; row++) {
+    for (let row = 0; row < this.height; row++) {
       if (!this.isRowFilled(row)) break;
 
       this.clearRow(row);
@@ -240,16 +241,21 @@ export class Grid {
     return this.cellColors;
   }
 
-  // Get grid size (for uniform buffer)
-  getSize() {
-    return this.size;
+  // Get grid width (for uniform buffer)
+  getWidth() {
+    return this.width;
+  }
+
+  // Get grid height (for uniform buffer)
+  getHeight() {
+    return this.height;
   }
 
   // Get all cells that are currently falling (colored cells that can still fall)
   getFallingCells() {
     const fallingCells = [];
-    for (let row = 1; row < this.size; row++) {
-      for (let col = 0; col < this.size; col++) {
+    for (let row = 1; row < this.height; row++) {
+      for (let col = 0; col < this.width; col++) {
         const cellIdx = this.getCellIndex(row, col);
         if (!this.isColored(cellIdx)) continue;
 
@@ -265,7 +271,8 @@ export class Grid {
 
   // Check if a position is valid for movement (within bounds and not colored)
   isValidPosition(row, col) {
-    if (col < 0 || col >= this.size || row < 0 || row >= this.size) {
+    if (col < 0 || col >= this.width
+      || row < 0 || row >= this.height) {
       return false;
     }
 

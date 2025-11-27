@@ -78,12 +78,13 @@ import { Grid } from './grid.js';
   });
 
   // Create grid instance
-  const GRID_SIZE = 50;
-  const grid = new Grid(GRID_SIZE);
+  const GRID_WIDTH = 10;
+  const GRID_HEIGHT = 20;
+  const grid = new Grid(GRID_WIDTH, GRID_HEIGHT);
   const TOTAL_CELLS = grid.totalCells;
 
   // Create a uniform buffer that describes the grid.
-  const uniformArray = new Float32Array([grid.getSize(), grid.getSize()]);
+  const uniformArray = new Float32Array([grid.getWidth(), grid.getHeight()]);
   const uniformBuffer = device.createBuffer({
     label: "Grid Uniforms",
     size: uniformArray.byteLength,
