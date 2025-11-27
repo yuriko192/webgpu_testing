@@ -9,17 +9,7 @@ struct VertexOutput {
 };
 
 @group(0) @binding(0) var<uniform> grid: vec2f;
-
-// Check if a cell is in the center plus shape (horizontal and vertical center lines)
-fn IsHighlighted(cellIndex: vec2f) -> bool {
-  let centerX = grid.x / 2.0;
-  let centerY = grid.y / 2.0;
-  // Check if cell is on the horizontal center line (y = centerY) or vertical center line (x = centerX)
-  // For even-sized grids, include both center rows/columns
-  let isOnVerticalLine = abs(cellIndex.x - centerX) < 1.0;
-  let isOnHorizontalLine = abs(cellIndex.y - centerY) < 1.0;
-  return isOnVerticalLine || isOnHorizontalLine;
-}
+@group(0) @binding(1) var<storage, read> cellColors: array<vec4f>;
 
 @vertex
 fn vertexMain(
@@ -39,13 +29,9 @@ fn vertexMain(
 
 @fragment
 fn fragmentMain(input : VertexOutput) -> @location(0) vec4f {
-  let cellIdx = input.cellIdx / grid;
-  let isInPlus = IsHighlighted(input.cellIdx);
-
-  if (!isInPlus) {
-    return vec4f(cellIdx, 1-cellIdx.x, 1); // (Red, Green, Blue, Alpha)
-  } else {
-    return vec4f(0.5, 0.5, 0.5, 1); // Gray
-  }
+  let cellX = u32(input.cellIdx.x);
+  let cellY = u32(input.cellIdx.y);
+  let cellIndex = cellY * u32(grid.x) + cellX;
+  return cellColors[cellIndex];
 }
 

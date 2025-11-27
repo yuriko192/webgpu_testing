@@ -20,16 +20,6 @@
     format: canvasFormat,
   })
 
-  const encoder = device.createCommandEncoder();
-  const pass = encoder.beginRenderPass({
-    colorAttachments: [{
-      view: context.getCurrentTexture().createView(),
-      loadOp: 'clear',
-      storeOp: 'store',
-    }]
-  })
-
-
   const vertices = new Float32Array([
 //   X,    Y,
     -0.8, -0.8, // Triangle 1 (Blue)
@@ -87,8 +77,9 @@
 
 
   const GRID_SIZE = 20;
+  const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
 
-// Create a uniform buffer that describes the grid.
+  // Create a uniform buffer that describes the grid.
   const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE]);
   const uniformBuffer = device.createBuffer({
     label: "Grid Uniforms",
@@ -97,24 +88,89 @@
   });
   device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
 
+  // Create storage buffer for cell colors (RGBA per cell)
+  // Initialize all cells to gray
+  const cellColors = new Float32Array(TOTAL_CELLS * 4); // 4 floats per color (RGBA)
+  for (let i = 0; i < TOTAL_CELLS; i++) {
+    cellColors[i * 4 + 0] = 0.5; // R
+    cellColors[i * 4 + 1] = 0.5; // G
+    cellColors[i * 4 + 2] = 0.5; // B
+    cellColors[i * 4 + 3] = 1.0; // A
+  }
+
+  const cellColorsBuffer = device.createBuffer({
+    label: "Cell Colors",
+    size: cellColors.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(cellColorsBuffer, 0, cellColors);
+
   const bindGroup = device.createBindGroup({
     label: "Cell renderer bind group",
     layout: cellPipeline.getBindGroupLayout(0),
-    entries: [{
-      binding: 0,
-      resource: {buffer: uniformBuffer}
-    }],
+    entries: [
+      {
+        binding: 0,
+        resource: {buffer: uniformBuffer}
+      },
+      {
+        binding: 1,
+        resource: {buffer: cellColorsBuffer}
+      }
+    ],
   });
 
+  // Function to render a frame
+  function render() {
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{
+        view: context.getCurrentTexture().createView(),
+        loadOp: 'clear',
+        storeOp: 'store',
+      }]
+    });
 
-// After encoder.beginRenderPass()
+    pass.setPipeline(cellPipeline);
+    pass.setVertexBuffer(0, vertexBuffer);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(vertices.length / 2, TOTAL_CELLS);
 
-  pass.setPipeline(cellPipeline);
-  pass.setVertexBuffer(0, vertexBuffer);
-  pass.setBindGroup(0, bindGroup);
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+  }
 
-  pass.draw(vertices.length / 2, GRID_SIZE * GRID_SIZE); // 6 vertices
+  // Function to generate a random color
+  function getRandomColor() {
+    return [
+      Math.random(), // R
+      Math.random(), // G
+      Math.random(), // B
+      1.0            // A
+    ];
+  }
 
-  pass.end();
-  device.queue.submit([encoder.finish()]);
+  // Function to update a random cell with a random color
+  function updateRandomCell() {
+    const randomCellIndex = Math.floor(Math.random() * TOTAL_CELLS);
+    const color = getRandomColor();
+    
+    // Update the color in the array
+    cellColors[randomCellIndex * 4 + 0] = color[0];
+    cellColors[randomCellIndex * 4 + 1] = color[1];
+    cellColors[randomCellIndex * 4 + 2] = color[2];
+    cellColors[randomCellIndex * 4 + 3] = color[3];
+    
+    // Write the entire updated array to the buffer
+    device.queue.writeBuffer(cellColorsBuffer, 0, cellColors);
+  }
+
+  // Initial render
+  render();
+
+  // Update a random cell every 200ms
+  setInterval(() => {
+    updateRandomCell();
+    render();
+  }, 200);
 })();
