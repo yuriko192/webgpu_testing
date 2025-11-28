@@ -188,5 +188,5 @@ import { Grid } from './grid.js';
   setInterval(() => {
     grid.update();
     render();
-  }, 1000/20);
+  }, 1000/10);
 })();

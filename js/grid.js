@@ -37,7 +37,7 @@ function getRandomColor() {
 }
 
 export class Grid {
-  constructor(width = 10, height = 20, lockDelayMs = 200) {
+  constructor(width = 10, height = 20, lockDelayMs = 500) {
     this.width = width;
     this.height = height;
     this.topRow = height - 1;
@@ -112,6 +112,18 @@ export class Grid {
     return true;
   }
 
+  // Helper function to get the count of colored cells in a row
+  getColoredCellCountInRow(row) {
+    let count = 0;
+    for (let col = 0; col < this.width; col++) {
+      const cellIndex = this.getCellIndex(row, col);
+      if (this.isColored(cellIndex)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   // Helper function to clear a specific row (set all cells in row to gray)
   clearRow(row) {
     for (let col = 0; col < this.width; col++) {
@@ -120,6 +132,46 @@ export class Grid {
     }
   }
 
+  // Copy a row from source row to target row
+  // Uses two-pointer approach, copying each cell one by one
+  copyRow(sourceRow, targetRow) {
+    if (sourceRow === targetRow) {
+      return
+    }
+
+    const floatsPerCell = 4;
+
+    // Copy each cell one by one
+    const sourceCellStartIndex = sourceRow * this.width;
+    const targetCellStartIndex = targetRow * this.width;
+    for (let col = 0; col < this.width; col++) {
+      const sourceCellIndex = sourceCellStartIndex + col;
+      const targetCellIndex = targetCellStartIndex + col;
+
+      const sourceColorIndex = sourceCellIndex * floatsPerCell;
+      const targetColorIndex = targetCellIndex * floatsPerCell;
+
+      // Copy colored state
+      this.isCellColored[targetCellIndex] = this.isCellColored[sourceCellIndex];
+
+      // Copy color data (RGBA - 4 floats per cell)
+      this.cellColors[targetColorIndex + 0] = this.cellColors[sourceColorIndex + 0];
+      this.cellColors[targetColorIndex + 1] = this.cellColors[sourceColorIndex + 1];
+      this.cellColors[targetColorIndex + 2] = this.cellColors[sourceColorIndex + 2];
+      this.cellColors[targetColorIndex + 3] = this.cellColors[sourceColorIndex + 3];
+    }
+  }
+
+  // Clear rows from startRow to endRow (inclusive) with empty cells
+  clearRows(startRow, endRow = this.height-1) {
+    for (let row = startRow; row <= endRow; row++) {
+      const rowStartCellIndex = row * this.width;
+      for (let col = 0; col < this.width; col++) {
+        const cellIndex = rowStartCellIndex + col;
+        this.setCellGray(cellIndex);
+      }
+    }
+  }
 
   // Get a random tetromino shape
   getRandomTetromino() {
@@ -235,6 +287,7 @@ export class Grid {
       this.currentTetromino = null;
       this.currentTetrominoColor = null;
       this.lockDelayStartTime = null;
+      this.clearCompletedRows();
     }
   }
 
@@ -260,18 +313,35 @@ export class Grid {
     this.lockDelayStartTime = null;
   }
 
-  // Function to clear completed rows starting from the bottom and continuing upward
+  // Clear filled rows and shifting unfilled rows down
   clearCompletedRows() {
-    for (let row = 0; row < this.height; row++) {
-      if (!this.isRowFilled(row)) break;
+    // sliding window implementation
+    let writeRow = 0;
+    let readRow = 0;
 
-      this.clearRow(row);
+    // sliding per row, from bottom to top
+    for (readRow; readRow < this.height; readRow++) {
+      const coloredCellCount = this.getColoredCellCountInRow(readRow);
+      if (coloredCellCount === 0) {
+        break;
+      }
+
+      if (coloredCellCount === this.width) {
+        continue;
+      }
+
+      // Shift unfilled rows down
+      this.copyRow(readRow, writeRow);
+      writeRow++;
     }
+
+    // Clear rows from writeRow to readRow (clamp readRow to valid range)
+    const endRow = Math.min(readRow, this.height - 1);
+    this.clearRows(writeRow, endRow);
   }
 
   // Main update function that applies all game logic
   update() {
-    this.clearCompletedRows();
     this.applyGravity();
     this.spawnTetromino();
   }
