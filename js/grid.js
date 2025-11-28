@@ -37,7 +37,7 @@ function getRandomColor() {
 }
 
 export class Grid {
-  constructor(width = 10, height = 20) {
+  constructor(width = 10, height = 20, lockDelayMs = 200) {
     this.width = width;
     this.height = height;
     this.topRow = height - 1;
@@ -58,6 +58,11 @@ export class Grid {
     // Current falling tetromino
     this.currentTetromino = null;
     this.currentTetrominoColor = null;
+
+    // Lock delay timer
+    // delay before a non-moving tetromino is committed
+    this.lockDelayMs = lockDelayMs;
+    this.lockDelayStartTime = null; // Timestamp when lock delay started
   }
 
   // Helper function to get cell index from row and column
@@ -211,13 +216,25 @@ export class Grid {
 
     // Check if tetromino can move down (exclude current position from collision check)
     if (this.canPlaceTetromino(shape, newCenterRow, centerCol, rotatedPositions)) {
+      this.lockDelayStartTime = null;
       this.removeTetromino(shape, centerRow, centerCol, rotatedPositions);
       this.placeTetromino(shape, newCenterRow, centerCol, this.currentTetrominoColor, rotatedPositions);
       this.currentTetromino.centerRow = newCenterRow;
-    } else {
-      // Tetromino has landed, clear it
+      return;
+    }
+
+    const currentTime = Date.now();
+    if (this.lockDelayStartTime === null) {
+      this.lockDelayStartTime = currentTime;
+      return;
+    }
+
+    const elapsedTime = currentTime - this.lockDelayStartTime;
+    if (elapsedTime >= this.lockDelayMs) {
+      // Commit tetromino to grid
       this.currentTetromino = null;
       this.currentTetrominoColor = null;
+      this.lockDelayStartTime = null;
     }
   }
 
@@ -240,6 +257,7 @@ export class Grid {
     this.placeTetromino(shape, centerRow, centerCol, color);
     this.currentTetromino = {shape, centerRow, centerCol, rotatedPositions: null};
     this.currentTetrominoColor = color;
+    this.lockDelayStartTime = null;
   }
 
   // Function to clear completed rows starting from the bottom and continuing upward
@@ -317,6 +335,7 @@ export class Grid {
       return false;
     }
 
+    this.lockDelayStartTime = null;
     this.removeTetromino(shape, centerRow, centerCol, rotatedPositions);
     this.placeTetromino(shape, centerRow, newCenterCol, this.currentTetrominoColor, rotatedPositions);
     this.currentTetromino.centerCol = newCenterCol;
@@ -359,6 +378,7 @@ export class Grid {
       return false;
     }
 
+    this.lockDelayStartTime = null;
     this.removeTetromino(shape, centerRow, centerCol, currentPositions);
     this.placeTetromino(shape, centerRow, centerCol, this.currentTetrominoColor, rotatedPositions);
     this.currentTetromino.rotatedPositions = rotatedPositions;
