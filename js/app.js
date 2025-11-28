@@ -156,6 +156,30 @@ import { Grid } from './grid.js';
       }
       return;
     }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (grid.rotateClockwise()) {
+        render();
+      }
+      return;
+    }
+
+    if (event.key === 'x' || event.key === 'X') {
+      event.preventDefault();
+      if (grid.rotateClockwise()) {
+        render();
+      }
+      return;
+    }
+
+    if (event.key === 'z' || event.key === 'Z') {
+      event.preventDefault();
+      if (grid.rotateCounterClockwise()) {
+        render();
+      }
+      return;
+    }
   });
 
   // Initial render
@@ -164,5 +188,5 @@ import { Grid } from './grid.js';
   setInterval(() => {
     grid.update();
     render();
-  }, 1000/60);
+  }, 1000/20);
 })();

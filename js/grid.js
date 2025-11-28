@@ -105,8 +105,8 @@ export class Grid {
   }
 
   // Get absolute positions of a tetromino at a given center position
-  getTetrominoPositions(shape, centerRow, centerCol) {
-    const relativePositions = TETROMINOES[shape];
+  getTetrominoPositions(shape, centerRow, centerCol, rotatedPositions = null) {
+    const relativePositions = rotatedPositions || TETROMINOES[shape];
     return relativePositions.map(([dr, dc]) => ({
       row: centerRow + dr,
       col: centerCol + dc
@@ -114,19 +114,21 @@ export class Grid {
   }
 
   // Check if a tetromino can be placed at a position
-  canPlaceTetromino(shape, centerRow, centerCol, excludeCurrentTetromino = false) {
-    const positions = this.getTetrominoPositions(shape, centerRow, centerCol);
-    const currentPositions = excludeCurrentTetromino && this.currentTetromino
-      ? this.getTetrominoPositions(this.currentTetromino.shape, this.currentTetromino.centerRow, this.currentTetromino.centerCol)
+  canPlaceTetromino(shape, centerRow, centerCol, rotatedPositions = null) {
+    const newPosition = this.getTetrominoPositions(shape, centerRow, centerCol, rotatedPositions);
+    const currentPositions = this.currentTetromino
+      ? this.getTetrominoPositions(
+        this.currentTetromino.shape,
+        this.currentTetromino.centerRow,
+        this.currentTetromino.centerCol,
+        this.currentTetromino.rotatedPositions
+      )
       : [];
 
-    for (const { row, col } of positions) {
-      // Check if position is part of current tetromino (if excluding)
-      if (excludeCurrentTetromino) {
-        const isCurrentPosition = currentPositions.some(p => p.row === row && p.col === col);
-        if (isCurrentPosition) {
-          continue; // This position is part of current tetromino, so it's valid
-        }
+    for (const {row, col} of newPosition) {
+      const isCurrentPosition = currentPositions.some(p => p.row === row && p.col === col);
+      if (isCurrentPosition) {
+        continue;
       }
 
       // Use isValidPosition to check bounds and if cell is already colored
@@ -138,9 +140,9 @@ export class Grid {
   }
 
   // Place a tetromino on the grid
-  placeTetromino(shape, centerRow, centerCol, color) {
-    const positions = this.getTetrominoPositions(shape, centerRow, centerCol);
-    for (const { row, col } of positions) {
+  placeTetromino(shape, centerRow, centerCol, color, rotatedPositions = null) {
+    const positions = this.getTetrominoPositions(shape, centerRow, centerCol, rotatedPositions);
+    for (const {row, col} of positions) {
       const cellIndex = this.getCellIndex(row, col);
       this.cellColors[cellIndex * 4 + 0] = color[0];
       this.cellColors[cellIndex * 4 + 1] = color[1];
@@ -151,9 +153,9 @@ export class Grid {
   }
 
   // Remove a tetromino from the grid
-  removeTetromino(shape, centerRow, centerCol) {
-    const positions = this.getTetrominoPositions(shape, centerRow, centerCol);
-    for (const { row, col } of positions) {
+  removeTetromino(shape, centerRow, centerCol, rotatedPositions = null) {
+    const positions = this.getTetrominoPositions(shape, centerRow, centerCol, rotatedPositions);
+    for (const {row, col} of positions) {
       const cellIndex = this.getCellIndex(row, col);
       this.setCellGray(cellIndex);
     }
@@ -185,13 +187,14 @@ export class Grid {
     }
 
     // Move the current tetromino down
-    const { shape, centerRow, centerCol } = this.currentTetromino;
+    const {shape, centerRow, centerCol} = this.currentTetromino;
+    const rotatedPositions = this.currentTetromino.rotatedPositions || null;
     const newCenterRow = centerRow - 1;
 
     // Check if tetromino can move down (exclude current position from collision check)
-    if (this.canPlaceTetromino(shape, newCenterRow, centerCol, true)) {
-      this.removeTetromino(shape, centerRow, centerCol);
-      this.placeTetromino(shape, newCenterRow, centerCol, this.currentTetrominoColor);
+    if (this.canPlaceTetromino(shape, newCenterRow, centerCol, rotatedPositions)) {
+      this.removeTetromino(shape, centerRow, centerCol, rotatedPositions);
+      this.placeTetromino(shape, newCenterRow, centerCol, this.currentTetrominoColor, rotatedPositions);
       this.currentTetromino.centerRow = newCenterRow;
     } else {
       // Tetromino has landed, clear it
@@ -201,8 +204,8 @@ export class Grid {
   }
 
   // Spawn a random tetromino at the top of the grid
+  // Only spawn if there's no current tetromino
   spawnTetromino() {
-    // Only spawn if there's no current tetromino
     if (this.currentTetromino) {
       return;
     }
@@ -211,13 +214,14 @@ export class Grid {
     const centerCol = Math.floor(this.width / 2); // Center horizontally
     const centerRow = this.topRow; // Start at the top
 
-    // Check if we can place it
-    if (this.canPlaceTetromino(shape, centerRow, centerCol)) {
-      const color = this.getRandomColor();
-      this.placeTetromino(shape, centerRow, centerCol, color);
-      this.currentTetromino = { shape, centerRow, centerCol };
-      this.currentTetrominoColor = color;
+    if (!this.canPlaceTetromino(shape, centerRow, centerCol)) {
+      return;
     }
+
+    const color = this.getRandomColor();
+    this.placeTetromino(shape, centerRow, centerCol, color);
+    this.currentTetromino = {shape, centerRow, centerCol, rotatedPositions: null};
+    this.currentTetrominoColor = color;
   }
 
   // Function to clear completed rows starting from the bottom and continuing upward
@@ -261,7 +265,7 @@ export class Grid {
 
         const cellBelowIdx = this.getCellIndex(row - 1, col);
         if (!this.isColored(cellBelowIdx)) {
-          fallingCells.push({ row, col, cellIndex: cellIdx });
+          fallingCells.push({row, col, cellIndex: cellIdx});
         }
       }
     }
@@ -287,21 +291,18 @@ export class Grid {
       return false;
     }
 
-    const { shape, centerRow, centerCol } = this.currentTetromino;
+    const {shape, centerRow, centerCol} = this.currentTetromino;
+    const rotatedPositions = this.currentTetromino.rotatedPositions || null;
     const newCenterCol = centerCol + direction;
 
-    // Check if tetromino can move (exclude current position from collision check)
-    if (this.canPlaceTetromino(shape, centerRow, newCenterCol, true)) {
-      // Remove from old position
-      this.removeTetromino(shape, centerRow, centerCol);
-      // Place at new position
-      this.placeTetromino(shape, centerRow, newCenterCol, this.currentTetrominoColor);
-      // Update position
-      this.currentTetromino.centerCol = newCenterCol;
-      return true;
+    if (!this.canPlaceTetromino(shape, centerRow, newCenterCol, rotatedPositions)) {
+      return false;
     }
 
-    return false;
+    this.removeTetromino(shape, centerRow, centerCol, rotatedPositions);
+    this.placeTetromino(shape, centerRow, newCenterCol, this.currentTetrominoColor, rotatedPositions);
+    this.currentTetromino.centerCol = newCenterCol;
+    return true;
   }
 
   // Move falling block left
@@ -312,6 +313,49 @@ export class Grid {
   // Move falling block right
   moveRight() {
     return this.moveTetromino(1);
+  }
+
+  // Rotate a tetromino's relative positions
+  rotateRelativePosition(relativePositions, clockwise = true) {
+    if (clockwise) {
+      // Rotate each position 90 degrees clockwise: [dr, dc] -> [dc, -dr]
+      return relativePositions.map(([dr, dc]) => [dc, -dr]);
+    } else {
+      // Rotate each position 90 degrees counter-clockwise: [dr, dc] -> [-dc, dr]
+      return relativePositions.map(([dr, dc]) => [-dc, dr]);
+    }
+  }
+
+  // Rotate current tetromino
+  rotate(clockwise = true) {
+    if (!this.currentTetromino) {
+      return false;
+    }
+
+    const {shape, centerRow, centerCol} = this.currentTetromino;
+    const currentPositions = this.currentTetromino.rotatedPositions || TETROMINOES[shape];
+    const rotatedPositions = this.rotateRelativePosition(currentPositions, clockwise);
+
+    // Check if rotated tetromino can be placed (excluding current tetromino positions)
+    if (!this.canPlaceTetromino(shape, centerRow, centerCol, rotatedPositions)) {
+      return false;
+    }
+
+    this.removeTetromino(shape, centerRow, centerCol, currentPositions);
+    this.placeTetromino(shape, centerRow, centerCol, this.currentTetrominoColor, rotatedPositions);
+    this.currentTetromino.rotatedPositions = rotatedPositions;
+
+    return true;
+  }
+
+  // Rotate current tetromino clockwise (convenience method)
+  rotateClockwise() {
+    return this.rotate(true);
+  }
+
+  // Rotate current tetromino counter-clockwise (convenience method)
+  rotateCounterClockwise() {
+    return this.rotate(false);
   }
 }
 
