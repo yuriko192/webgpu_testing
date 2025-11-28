@@ -59,6 +59,9 @@ export class Grid {
     this.currentTetromino = null;
     this.currentTetrominoColor = null;
 
+    // Shadow cells for harddrop preview
+    this.shadowCells = new Set(); // Set of cell indices that are shadow cells
+
     // Lock delay timer
     // delay before a non-moving tetromino is committed
     this.lockDelayMs = lockDelayMs;
@@ -255,6 +258,7 @@ export class Grid {
 
   // Lock the current tetromino to the grid
   commitTetromino() {
+    this.clearShadow();
     this.currentTetromino = null;
     this.currentTetrominoColor = null;
     this.lockDelayStartTime = null;
@@ -281,6 +285,7 @@ export class Grid {
       this.removeTetromino(shape, centerRow, centerCol, rotatedPositions);
       this.placeTetromino(shape, newCenterRow, centerCol, this.currentTetrominoColor, rotatedPositions);
       this.currentTetromino.centerRow = newCenterRow;
+      this.updateShadow();
       return;
     }
 
@@ -316,6 +321,7 @@ export class Grid {
     this.currentTetromino = {shape, centerRow, centerCol, rotatedPositions: null};
     this.currentTetrominoColor = color;
     this.lockDelayStartTime = null;
+    this.updateShadow();
   }
 
   // Clear filled rows and shifting unfilled rows down
@@ -351,8 +357,26 @@ export class Grid {
   }
 
   // Get the grid colors array (for WebGPU buffer updates)
+  // Returns colors with shadow cells rendered as semi-transparent versions of the tetromino color
   getCellColors() {
-    return this.cellColors;
+    const colors = new Float32Array(this.cellColors);
+
+    // Apply shadow effect to shadow cells
+    if (this.currentTetromino && this.currentTetrominoColor) {
+      for (const cellIndex of this.shadowCells) {
+        // Only apply shadow if the cell is not already colored (not part of the current tetromino)
+        if (!this.isColored(cellIndex)) {
+          const colorIndex = cellIndex * 4;
+          // Use semi-transparent version of the tetromino color
+          colors[colorIndex + 0] = this.currentTetrominoColor[0] * 0.3; // R
+          colors[colorIndex + 1] = this.currentTetrominoColor[1] * 0.3; // G
+          colors[colorIndex + 2] = this.currentTetrominoColor[2] * 0.3; // B
+          colors[colorIndex + 3] = 0.5; // A (semi-transparent)
+        }
+      }
+    }
+
+    return colors;
   }
 
   // Get grid width (for uniform buffer)
@@ -413,6 +437,7 @@ export class Grid {
     this.removeTetromino(shape, centerRow, centerCol, rotatedPositions);
     this.placeTetromino(shape, centerRow, newCenterCol, this.currentTetrominoColor, rotatedPositions);
     this.currentTetromino.centerCol = newCenterCol;
+    this.updateShadow();
     return true;
   }
 
@@ -456,6 +481,7 @@ export class Grid {
     this.removeTetromino(shape, centerRow, centerCol, currentPositions);
     this.placeTetromino(shape, centerRow, centerCol, this.currentTetrominoColor, rotatedPositions);
     this.currentTetromino.rotatedPositions = rotatedPositions;
+    this.updateShadow();
 
     return true;
   }
@@ -468,6 +494,85 @@ export class Grid {
   // Rotate current tetromino counter-clockwise (convenience method)
   rotateCounterClockwise() {
     return this.rotate(false);
+  }
+
+  // Calculate the harddrop position (where the piece would land)
+  getHardDropPosition() {
+    if (!this.currentTetromino) {
+      return null;
+    }
+
+    const {shape, centerRow, centerCol} = this.currentTetromino;
+    const rotatedPositions = this.currentTetromino.rotatedPositions || null;
+
+    // Find the lowest valid position by moving down until we can't
+    let newCenterRow = centerRow;
+    while (this.canPlaceTetromino(shape, newCenterRow - 1, centerCol, rotatedPositions)) {
+      newCenterRow--;
+    }
+
+    return {
+      shape,
+      centerRow: newCenterRow,
+      centerCol,
+      rotatedPositions
+    };
+  }
+
+  // Update shadow cells based on current tetromino position
+  updateShadow() {
+    this.clearShadow();
+    if (!this.currentTetromino) {
+      return;
+    }
+
+    const hardDropPos = this.getHardDropPosition();
+    if (!hardDropPos) {
+      return;
+    }
+
+    // Don't show shadow if it's at the same position as current tetromino
+    if (hardDropPos.centerRow === this.currentTetromino.centerRow &&
+        hardDropPos.centerCol === this.currentTetromino.centerCol) {
+      return;
+    }
+
+    // Get current tetromino positions to exclude from shadow
+    const currentPositions = this.getTetrominoPositions(
+      this.currentTetromino.shape,
+      this.currentTetromino.centerRow,
+      this.currentTetromino.centerCol,
+      this.currentTetromino.rotatedPositions
+    );
+    const currentPositionSet = new Set(
+      currentPositions.map(p => this.getCellIndex(p.row, p.col))
+    );
+
+    // Mark shadow cells (excluding cells that are part of the current tetromino)
+    const shadowPositions = this.getTetrominoPositions(
+      hardDropPos.shape,
+      hardDropPos.centerRow,
+      hardDropPos.centerCol,
+      hardDropPos.rotatedPositions
+    );
+
+    for (const {row, col} of shadowPositions) {
+      const cellIndex = this.getCellIndex(row, col);
+      // Only add shadow if it's not part of the current tetromino
+      if (!currentPositionSet.has(cellIndex)) {
+        this.shadowCells.add(cellIndex);
+      }
+    }
+  }
+
+  // Clear all shadow cells
+  clearShadow() {
+    this.shadowCells.clear();
+  }
+
+  // Check if a cell is a shadow cell
+  isShadowCell(cellIndex) {
+    return this.shadowCells.has(cellIndex);
   }
 
   // Drops the current tetromino to the bottom instantly and commit it
@@ -492,6 +597,7 @@ export class Grid {
       this.currentTetromino.centerRow = newCenterRow;
     }
 
+    this.clearShadow();
     this.commitTetromino();
     return true;
   }
