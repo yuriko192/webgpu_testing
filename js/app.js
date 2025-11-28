@@ -180,13 +180,22 @@ import { Grid } from './grid.js';
       }
       return;
     }
+
+    if (event.key === ' ') {
+      event.preventDefault();
+      if (grid.hardDrop()) {
+        render();
+      }
+      return;
+    }
   });
 
   // Initial render
+  grid.spawnTetromino();
   render();
 
   setInterval(() => {
     grid.update();
     render();
-  }, 1000/10);
+  }, 1000/1);
 })();

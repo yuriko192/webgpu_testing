@@ -253,6 +253,15 @@ export class Grid {
     }
   }
 
+  // Lock the current tetromino to the grid
+  commitTetromino() {
+    this.currentTetromino = null;
+    this.currentTetrominoColor = null;
+    this.lockDelayStartTime = null;
+    this.clearCompletedRows();
+    this.spawnTetromino();
+  }
+
   // Apply gravity to the current falling tetromino
   applyGravity() {
     if (!this.currentTetromino) {
@@ -283,11 +292,7 @@ export class Grid {
 
     const elapsedTime = currentTime - this.lockDelayStartTime;
     if (elapsedTime >= this.lockDelayMs) {
-      // Commit tetromino to grid
-      this.currentTetromino = null;
-      this.currentTetrominoColor = null;
-      this.lockDelayStartTime = null;
-      this.clearCompletedRows();
+      this.commitTetromino();
     }
   }
 
@@ -343,7 +348,6 @@ export class Grid {
   // Main update function that applies all game logic
   update() {
     this.applyGravity();
-    this.spawnTetromino();
   }
 
   // Get the grid colors array (for WebGPU buffer updates)
@@ -464,6 +468,32 @@ export class Grid {
   // Rotate current tetromino counter-clockwise (convenience method)
   rotateCounterClockwise() {
     return this.rotate(false);
+  }
+
+  // Drops the current tetromino to the bottom instantly and commit it
+  hardDrop() {
+    if (!this.currentTetromino) {
+      return false;
+    }
+
+    const {shape, centerRow, centerCol} = this.currentTetromino;
+    const rotatedPositions = this.currentTetromino.rotatedPositions || null;
+
+    // Find the lowest valid position by moving down until we can't
+    let newCenterRow = centerRow;
+    while (this.canPlaceTetromino(shape, newCenterRow - 1, centerCol, rotatedPositions)) {
+      newCenterRow--;
+    }
+
+    // If we found a new position, move the tetromino there
+    if (newCenterRow !== centerRow) {
+      this.removeTetromino(shape, centerRow, centerCol, rotatedPositions);
+      this.placeTetromino(shape, newCenterRow, centerCol, this.currentTetrominoColor, rotatedPositions);
+      this.currentTetromino.centerRow = newCenterRow;
+    }
+
+    this.commitTetromino();
+    return true;
   }
 }
 
