@@ -9,6 +9,33 @@ const TETROMINOES = {
   L: [[-1, 1], [0, -1], [0, 0], [0, 1]]   // L shape
 };
 
+// Standard Tetris color constants (RGBA)
+const TETROMINO_COLORS = {
+  I: [0.0, 1.0, 1.0, 1.0],   // Cyan
+  O: [1.0, 1.0, 0.0, 1.0],   // Yellow
+  T: [1.0, 0.0, 1.0, 1.0],   // Magenta/Purple
+  S: [0.0, 1.0, 0.0, 1.0],   // Green
+  Z: [1.0, 0.0, 0.0, 1.0],   // Red
+  J: [0.0, 0.0, 1.0, 1.0],   // Blue
+  L: [1.0, 0.647, 0.0, 1.0]  // Orange
+};
+
+// Function to get standard Tetris color for a tetromino shape
+// Default to gray if shape not found
+function getTetrominoColor(shape) {
+  return TETROMINO_COLORS[shape] || [0.5, 0.5, 0.5, 1.0];
+}
+
+// Function to generate a random color
+function getRandomColor() {
+  return [
+    Math.random(), // R
+    Math.random(), // G
+    Math.random(), // B
+    1.0            // A
+  ];
+}
+
 export class Grid {
   constructor(width = 10, height = 20) {
     this.width = width;
@@ -88,15 +115,6 @@ export class Grid {
     }
   }
 
-  // Function to generate a random color
-  getRandomColor() {
-    return [
-      Math.random(), // R
-      Math.random(), // G
-      Math.random(), // B
-      1.0            // A
-    ];
-  }
 
   // Get a random tetromino shape
   getRandomTetromino() {
@@ -218,7 +236,7 @@ export class Grid {
       return;
     }
 
-    const color = this.getRandomColor();
+    const color = getTetrominoColor(shape);
     this.placeTetromino(shape, centerRow, centerCol, color);
     this.currentTetromino = {shape, centerRow, centerCol, rotatedPositions: null};
     this.currentTetrominoColor = color;
