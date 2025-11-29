@@ -246,6 +246,22 @@ textarea {
 }
 
 
+.game-container {
+  display: grid;
+  grid-template-areas:
+    "hold main";
+  grid-template-columns: auto 1fr;
+  padding: 1rem;
+  align-items: start;
+  justify-items: start;
+}
+
 #hold-canvas {
+  padding: .2rem;
   background-color: #191919;
+  grid-area: hold;
+}
+
+#main-canvas {
+  grid-area: main;
 }

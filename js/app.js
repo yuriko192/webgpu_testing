@@ -168,6 +168,7 @@ import { Grid } from './grid.js';
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
         loadOp: 'clear',
+        clearValue: { r: 0.6, g: 0.6, b: 0.6, a: 1.0 },
         storeOp: 'store',
       }]
     });
