@@ -26,7 +26,15 @@
 
   <!-- Add your site or application content here -->
   <div class="game-container">
-    <canvas id="hold-canvas" width="96" height="96"></canvas>
+    <div class="game-sidebar">
+      <canvas id="hold-canvas" width="96" height="96"></canvas>
+      <div class="stats">
+        <div class="stat-item">
+          <span class="stat-label">Lines:</span>
+          <span id="lines-counter" class="stat-value">0</span>
+        </div>
+      </div>
+    </div>
     <canvas id="main-canvas" width="384" height="768"></canvas>
   </div>
   <script src="js/app.js" type="module"></script>

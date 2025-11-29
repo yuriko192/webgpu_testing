@@ -51,6 +51,9 @@ export class Grid {
     // delay before a non-moving tetromino is committed
     this.lockDelayMs = lockDelayMs;
     this.lockDelayStartTime = null; // Timestamp when lock delay started
+
+    // Lines cleared counter
+    this.linesCleared = 0;
   }
 
   // Helper function to get cell index from row and column
@@ -348,6 +351,7 @@ export class Grid {
     // sliding window implementation
     let writeRow = 0;
     let readRow = 0;
+    let clearedCount = 0;
 
     // sliding per row, from bottom to top
     for (readRow; readRow < this.height; readRow++) {
@@ -357,6 +361,7 @@ export class Grid {
       }
 
       if (coloredCellCount === this.width) {
+        clearedCount++;
         continue;
       }
 
@@ -368,6 +373,11 @@ export class Grid {
     // Clear rows from writeRow to readRow (clamp readRow to valid range)
     const endRow = Math.min(readRow, this.height - 1);
     this.clearRows(writeRow, endRow);
+
+    // Update lines cleared counter
+    this.linesCleared += clearedCount;
+    const linesCounter = document.querySelector('#lines-counter');
+    linesCounter.textContent = this.linesCleared;
   }
 
   // Main update function that applies all game logic
@@ -463,6 +473,11 @@ export class Grid {
   // Get grid height (for uniform buffer)
   getHeight() {
     return this.height;
+  }
+
+  // Get lines cleared count
+  getLinesCleared() {
+    return this.linesCleared;
   }
 
   // Get all cells that are currently falling (colored cells that can still fall)
