@@ -55,6 +55,9 @@ export class Grid {
 
     // Stats tracker
     this.stats = new Stats();
+
+    // Random bag system for tetromino generation
+    this.tetrominoBag = [];
   }
 
   // Helper function to get cell index from row and column
@@ -165,10 +168,26 @@ export class Grid {
     }
   }
 
-  // Get a random tetromino instance
-  getRandomTetromino() {
+  // Refill the tetromino bag with all 7 pieces and shuffle
+  refillBag() {
     const shapes = Object.keys(TETROMINOES);
-    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+    this.tetrominoBag = [...shapes];
+
+    // Fisher-Yates shuffle algorithm
+    for (let i = this.tetrominoBag.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.tetrominoBag[i], this.tetrominoBag[j]] = [this.tetrominoBag[j], this.tetrominoBag[i]];
+    }
+  }
+
+  // Get a random tetromino instance using 7 bag system
+  getRandomTetromino() {
+    if (this.tetrominoBag.length === 0) {
+      this.refillBag();
+    }
+
+    // Pop the last element from the bag
+    const shape = this.tetrominoBag.pop();
     return TETROMINOES[shape];
   }
 
