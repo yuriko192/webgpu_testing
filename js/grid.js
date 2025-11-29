@@ -1,71 +1,84 @@
-// Tetromino definitions (relative positions from center)
-const TETROMINOES = {
-  I: [[0, -1], [0, 0], [0, 1], [0, 2]],  // I Shape
-  O: [[-1, 0], [-1, 1], [0, 0], [0, 1]], // Square
-  T: [[-1, 0], [0, -1], [0, 0], [0, 1]],  // T shape
-  S: [[-1, 0], [-1, 1], [0, -1], [0, 0]], // S shape
-  Z: [[-1, -1], [-1, 0], [0, 0], [0, 1]], // Z shape
-  J: [[-1, -1], [0, -1], [0, 0], [0, 1]], // J shape
-  L: [[-1, 1], [0, -1], [0, 0], [0, 1]]   // L shape
-};
+export class Tetromino {
+  // Tetromino definitions (relative positions from center)
+  static CELL_POSITIONS = {
+    I: [[0, -1], [0, 0], [0, 1], [0, 2]],  // I Shape
+    O: [[-1, 0], [-1, 1], [0, 0], [0, 1]], // Square
+    T: [[-1, 0], [0, -1], [0, 0], [0, 1]],  // T shape
+    S: [[-1, 0], [-1, 1], [0, -1], [0, 0]], // S shape
+    Z: [[-1, -1], [-1, 0], [0, 0], [0, 1]], // Z shape
+    J: [[-1, -1], [0, -1], [0, 0], [0, 1]], // J shape
+    L: [[-1, 1], [0, -1], [0, 0], [0, 1]]   // L shape
+  };
 
-// Standard Tetris color constants (RGBA)
-const TETROMINO_COLORS = {
-  I: [0.0, 1.0, 1.0, 1.0],   // Cyan
-  O: [1.0, 1.0, 0.0, 1.0],   // Yellow
-  T: [1.0, 0.0, 1.0, 1.0],   // Magenta/Purple
-  S: [0.0, 1.0, 0.0, 1.0],   // Green
-  Z: [1.0, 0.0, 0.0, 1.0],   // Red
-  J: [0.0, 0.0, 1.0, 1.0],   // Blue
-  L: [1.0, 0.647, 0.0, 1.0]  // Orange
-};
+  // Standard Tetris color constants (RGBA)
+  static COLORS = {
+    I: [0.0, 1.0, 1.0, 1.0],   // Cyan
+    O: [1.0, 1.0, 0.0, 1.0],   // Yellow
+    T: [1.0, 0.0, 1.0, 1.0],   // Magenta/Purple
+    S: [0.0, 1.0, 0.0, 1.0],   // Green
+    Z: [1.0, 0.0, 0.0, 1.0],   // Red
+    J: [0.0, 0.0, 1.0, 1.0],   // Blue
+    L: [1.0, 0.647, 0.0, 1.0]  // Orange
+  };
 
-// Pre-calculated bounding boxes of all tetromino shapes
-const TETROMINO_BOUNDING_BOXES = (() => {
-  const boundingBoxes = {};
-  for (const [shape, positions] of Object.entries(TETROMINOES)) {
-    let minRow = Infinity;
-    let maxRow = -Infinity;
-    let minCol = Infinity;
-    let maxCol = -Infinity;
+  // Pre-calculated bounding boxes of all tetromino shapes
+  static BOUNDING_BOXES = (() => {
+    const boundingBoxes = {};
+    for (const [shape, positions] of Object.entries(Tetromino.CELL_POSITIONS)) {
+      let minRow = Infinity;
+      let maxRow = -Infinity;
+      let minCol = Infinity;
+      let maxCol = -Infinity;
 
-    for (const [row, col] of positions) {
-      minRow = Math.min(minRow, row);
-      maxRow = Math.max(maxRow, row);
-      minCol = Math.min(minCol, col);
-      maxCol = Math.max(maxCol, col);
+      for (const [row, col] of positions) {
+        minRow = Math.min(minRow, row);
+        maxRow = Math.max(maxRow, row);
+        minCol = Math.min(minCol, col);
+        maxCol = Math.max(maxCol, col);
+      }
+
+      boundingBoxes[shape] = {
+        minRow,
+        maxRow,
+        minCol,
+        maxCol,
+        width: maxCol - minCol + 1,
+        height: maxRow - minRow + 1
+      };
     }
+    return boundingBoxes;
+  })();
 
-    boundingBoxes[shape] = {
-      minRow,
-      maxRow,
-      minCol,
-      maxCol,
-      width: maxCol - minCol + 1,
-      height: maxRow - minRow + 1
-    };
+  // Pre-calculated centers of all tetromino shapes (midpoint between min and max positions)
+  static CENTERS = (() => {
+    const centers = {};
+    for (const shape of Object.keys(Tetromino.CELL_POSITIONS)) {
+      const bbox = Tetromino.BOUNDING_BOXES[shape];
+      centers[shape] = [
+        (bbox.minRow + bbox.maxRow) / 2,
+        (bbox.minCol + bbox.maxCol) / 2
+      ];
+    }
+    return centers;
+  })();
+
+  constructor(shape) {
+    this.shape = shape;
+    this.cellPositions = Tetromino.CELL_POSITIONS[shape];
+    this.color = Tetromino.COLORS[shape];
+    this.boundingBox = Tetromino.BOUNDING_BOXES[shape];
+    this.center = Tetromino.CENTERS[shape];
   }
-  return boundingBoxes;
-})();
-
-// Pre-calculated centers of all tetromino shapes (midpoint between min and max positions)
-const TETROMINO_CENTERS = (() => {
-  const centers = {};
-  for (const shape of Object.keys(TETROMINOES)) {
-    const bbox = TETROMINO_BOUNDING_BOXES[shape];
-    centers[shape] = [
-      (bbox.minRow + bbox.maxRow) / 2,
-      (bbox.minCol + bbox.maxCol) / 2
-    ];
-  }
-  return centers;
-})();
-
-// Function to get standard Tetris color for a tetromino shape
-// Default to gray if shape not found
-function getTetrominoColor(shape) {
-  return TETROMINO_COLORS[shape] || [0.5, 0.5, 0.5, 1.0];
 }
+
+// Pre-calculated instances of all tetromino shapes
+const TETROMINOES = (() => {
+  const tetrominoes = {};
+  for (const shape of Object.keys(Tetromino.CELL_POSITIONS)) {
+    tetrominoes[shape] = new Tetromino(shape);
+  }
+  return tetrominoes;
+})();
 
 // Function to generate a random color
 function getRandomColor() {
@@ -96,13 +109,16 @@ export class Grid {
       this.cellColors[i * 4 + 3] = 1.0; // A
     }
 
-    // Current falling tetromino
+    // Current falling tetromino: {
+    //      tetromino: Tetromino class,
+    //      centerRow,
+    //      centerCol,
+    //      rotatedPositions
+    // }
     this.currentTetromino = null;
-    this.currentTetrominoColor = null;
 
-    // Held tetromino
+    // currently Held tetromino
     this.heldTetromino = null;
-    this.heldTetrominoColor = null;
     this.canHold = true; // Flag to prevent holding multiple times per spawn
 
     // Shadow cells for harddrop preview
@@ -222,15 +238,16 @@ export class Grid {
     }
   }
 
-  // Get a random tetromino shape
+  // Get a random tetromino instance
   getRandomTetromino() {
-    const shapes = Object.keys(TETROMINOES);
-    return shapes[Math.floor(Math.random() * shapes.length)];
+    const shapes = Object.keys(Tetromino.CELL_POSITIONS);
+    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+    return TETROMINOES[shape];
   }
 
   // Get absolute positions of a tetromino at a given center position
-  getTetrominoPositions(shape, centerRow, centerCol, rotatedPositions = null) {
-    const relativePositions = rotatedPositions || TETROMINOES[shape];
+  getTetrominoPositions({tetromino, centerRow, centerCol, rotatedPositions = null}) {
+    const relativePositions = rotatedPositions || tetromino.cellPositions;
     return relativePositions.map(([dr, dc]) => ({
       row: centerRow + dr,
       col: centerCol + dc
@@ -238,16 +255,9 @@ export class Grid {
   }
 
   // Check if a tetromino can be placed at a position
-  canPlaceTetromino(shape, centerRow, centerCol, rotatedPositions = null) {
-    const newPosition = this.getTetrominoPositions(shape, centerRow, centerCol, rotatedPositions);
-    const currentPositions = this.currentTetromino
-      ? this.getTetrominoPositions(
-        this.currentTetromino.shape,
-        this.currentTetromino.centerRow,
-        this.currentTetromino.centerCol,
-        this.currentTetromino.rotatedPositions
-      )
-      : [];
+  // {tetromino, centerRow, centerCol, rotatedPositions = null}
+  canPlaceTetromino(tetrominoState) {
+    const newPosition = this.getTetrominoPositions(tetrominoState);
 
     for (const {row, col} of newPosition) {
       // Use isValidPosition to check bounds and if cell is already colored
@@ -259,21 +269,24 @@ export class Grid {
   }
 
   // Place a tetromino on the grid
-  placeTetromino(shape, centerRow, centerCol, color, rotatedPositions = null) {
-    const positions = this.getTetrominoPositions(shape, centerRow, centerCol, rotatedPositions);
+  // {tetromino, centerRow, centerCol, rotatedPositions = null}
+  placeTetromino(tetrominoState) {
+    const {tetromino} = tetrominoState;
+    const positions = this.getTetrominoPositions(tetrominoState);
     for (const {row, col} of positions) {
       const cellIndex = this.getCellIndex(row, col);
-      this.cellColors[cellIndex * 4 + 0] = color[0];
-      this.cellColors[cellIndex * 4 + 1] = color[1];
-      this.cellColors[cellIndex * 4 + 2] = color[2];
-      this.cellColors[cellIndex * 4 + 3] = color[3];
+      this.cellColors[cellIndex * 4 + 0] = tetromino.color[0];
+      this.cellColors[cellIndex * 4 + 1] = tetromino.color[1];
+      this.cellColors[cellIndex * 4 + 2] = tetromino.color[2];
+      this.cellColors[cellIndex * 4 + 3] = tetromino.color[3];
       this.isCellColored[cellIndex] = true;
     }
   }
 
   // Remove a tetromino from the grid
-  removeTetromino(shape, centerRow, centerCol, rotatedPositions = null) {
-    const positions = this.getTetrominoPositions(shape, centerRow, centerCol, rotatedPositions);
+  // {tetromino, centerRow, centerCol, rotatedPositions = null}
+  removeTetromino(tetrominoState) {
+    const positions = this.getTetrominoPositions(tetrominoState);
     for (const {row, col} of positions) {
       const cellIndex = this.getCellIndex(row, col);
       this.setCellGray(cellIndex);
@@ -303,13 +316,9 @@ export class Grid {
       return;
     }
 
-    const {shape, centerRow, centerCol} = this.currentTetromino;
-    const rotatedPositions = this.currentTetromino.rotatedPositions || null;
-    this.placeTetromino(shape, centerRow, centerCol, this.currentTetrominoColor, rotatedPositions);
-
+    this.placeTetromino(this.currentTetromino);
     this.clearShadow();
     this.currentTetromino = null;
-    this.currentTetrominoColor = null;
     this.lockDelayStartTime = null;
     this.clearCompletedRows();
     this.spawnTetromino();
@@ -324,12 +333,11 @@ export class Grid {
     }
 
     // Move the current tetromino down
-    const {shape, centerRow, centerCol} = this.currentTetromino;
-    const rotatedPositions = this.currentTetromino.rotatedPositions || null;
+    const {centerRow} = this.currentTetromino;
     const newCenterRow = centerRow - 1;
 
     // Check if tetromino can move down (exclude current position from collision check)
-    if (this.canPlaceTetromino(shape, newCenterRow, centerCol, rotatedPositions)) {
+    if (this.canPlaceTetromino({...this.currentTetromino, centerRow: newCenterRow})) {
       this.lockDelayStartTime = null;
       this.currentTetromino.centerRow = newCenterRow;
       this.updateShadow();
@@ -355,17 +363,14 @@ export class Grid {
       return;
     }
 
-    const shape = this.getRandomTetromino();
+    const tetromino = this.getRandomTetromino();
     const centerCol = Math.floor(this.width / 2); // Center horizontally
     const centerRow = this.topRow; // Start at the top
-
-    if (!this.canPlaceTetromino(shape, centerRow, centerCol)) {
+    if (!this.canPlaceTetromino({tetromino, centerRow, centerCol})) {
       return;
     }
 
-    const color = getTetrominoColor(shape);
-    this.currentTetromino = {shape, centerRow, centerCol, rotatedPositions: null};
-    this.currentTetrominoColor = color;
+    this.currentTetromino = {tetromino, centerRow, centerCol, rotatedPositions: null};
     this.lockDelayStartTime = null;
     this.canHold = true; // Reset hold flag when spawning new tetromino
     this.updateShadow();
@@ -378,35 +383,27 @@ export class Grid {
     }
 
     this.clearShadow();
-    const tempShape = this.currentTetromino.shape;
-    const tempColor = this.currentTetrominoColor;
+    const tempTetromino = this.currentTetromino.tetromino;
 
     if (this.heldTetromino) {
       // Swap: put held tetromino as current
-      const heldShape = this.heldTetromino;
-      const heldColor = this.heldTetrominoColor;
-
       const centerCol = Math.floor(this.width / 2);
       const centerRow = this.topRow;
-
-      if (!this.canPlaceTetromino(heldShape, centerRow, centerCol)) {
+      if (!this.canPlaceTetromino({tetromino: this.heldTetromino, centerRow, centerCol})) {
         return false;
       }
 
-      this.currentTetromino = {shape: heldShape, centerRow, centerCol, rotatedPositions: null};
-      this.currentTetrominoColor = heldColor;
+      this.currentTetromino = {tetromino: this.heldTetromino, centerRow, centerCol, rotatedPositions: null};
       this.lockDelayStartTime = null;
       this.updateShadow();
     } else {
       // No held piece, just spawn a new one
       this.currentTetromino = null;
-      this.currentTetrominoColor = null;
       this.spawnTetromino();
     }
 
     // Store the previously current tetromino in hold and update flag
-    this.heldTetromino = tempShape;
-    this.heldTetrominoColor = tempColor;
+    this.heldTetromino = tempTetromino;
     this.canHold = false;
     return true;
   }
@@ -461,7 +458,7 @@ export class Grid {
       return colors;
     }
 
-    const relativePositions = TETROMINOES[this.heldTetromino];
+    const relativePositions = this.heldTetromino.cellPositions;
 
     // Render tetromino starting from bottom-left (0, 0)
     // Offset by 1 to offset negative Tetromino relative positions
@@ -476,10 +473,10 @@ export class Grid {
       if (row >= 0 && row < PREVIEW_SIZE && col >= 0 && col < PREVIEW_SIZE) {
         const cellIndex = row * PREVIEW_SIZE + col;
         const colorIndex = cellIndex * 4;
-        colors[colorIndex + 0] = this.heldTetrominoColor[0]; // R
-        colors[colorIndex + 1] = this.heldTetrominoColor[1]; // G
-        colors[colorIndex + 2] = this.heldTetrominoColor[2]; // B
-        colors[colorIndex + 3] = this.heldTetrominoColor[3]; // A
+        colors[colorIndex + 0] = this.heldTetromino.color[0]; // R
+        colors[colorIndex + 1] = this.heldTetromino.color[1]; // G
+        colors[colorIndex + 2] = this.heldTetromino.color[2]; // B
+        colors[colorIndex + 3] = this.heldTetromino.color[3]; // A
       }
     }
 
@@ -492,33 +489,29 @@ export class Grid {
     const colors = new Float32Array(this.cellColors);
 
     // Render active tetromino cells
-    if (this.currentTetromino && this.currentTetrominoColor) {
+    if (this.currentTetromino) {
+      const {tetromino} = this.currentTetromino;
       // Apply shadow
       for (const cellIndex of this.shadowCells) {
         const colorIndex = cellIndex * 4;
         // Use semi-transparent version of the tetromino color
-        colors[colorIndex + 0] = this.currentTetrominoColor[0] * 0.3; // R
-        colors[colorIndex + 1] = this.currentTetrominoColor[1] * 0.3; // G
-        colors[colorIndex + 2] = this.currentTetrominoColor[2] * 0.3; // B
+        colors[colorIndex + 0] = tetromino.color[0] * 0.3; // R
+        colors[colorIndex + 1] = tetromino.color[1] * 0.3; // G
+        colors[colorIndex + 2] = tetromino.color[2] * 0.3; // B
         colors[colorIndex + 3] = 0.5; // A (semi-transparent)
       }
 
-      const positions = this.getTetrominoPositions(
-        this.currentTetromino.shape,
-        this.currentTetromino.centerRow,
-        this.currentTetromino.centerCol,
-        this.currentTetromino.rotatedPositions
-      );
+      const positions = this.getTetrominoPositions(this.currentTetromino);
 
       // apply active tetromino cells
       for (const {row, col} of positions) {
         const cellIndex = this.getCellIndex(row, col);
         if (cellIndex >= 0 && cellIndex < this.totalCells) {
           const colorIndex = cellIndex * 4;
-          colors[colorIndex + 0] = this.currentTetrominoColor[0]; // R
-          colors[colorIndex + 1] = this.currentTetrominoColor[1]; // G
-          colors[colorIndex + 2] = this.currentTetrominoColor[2]; // B
-          colors[colorIndex + 3] = this.currentTetrominoColor[3]; // A
+          colors[colorIndex + 0] = tetromino.color[0]; // R
+          colors[colorIndex + 1] = tetromino.color[1]; // G
+          colors[colorIndex + 2] = tetromino.color[2]; // B
+          colors[colorIndex + 3] = tetromino.color[3]; // A
         }
       }
 
@@ -573,11 +566,9 @@ export class Grid {
       return false;
     }
 
-    const {shape, centerRow, centerCol} = this.currentTetromino;
-    const rotatedPositions = this.currentTetromino.rotatedPositions || null;
+    const {centerCol} = this.currentTetromino;
     const newCenterCol = centerCol + direction;
-
-    if (!this.canPlaceTetromino(shape, centerRow, newCenterCol, rotatedPositions)) {
+    if (!this.canPlaceTetromino({...this.currentTetromino, centerCol: newCenterCol})) {
       return false;
     }
 
@@ -614,12 +605,11 @@ export class Grid {
       return false;
     }
 
-    const {shape, centerRow, centerCol} = this.currentTetromino;
-    const currentPositions = this.currentTetromino.rotatedPositions || TETROMINOES[shape];
-    const rotatedPositions = this.rotateRelativePosition(currentPositions, clockwise);
-
     // Check if rotated tetromino can be placed (excluding current tetromino positions)
-    if (!this.canPlaceTetromino(shape, centerRow, centerCol, rotatedPositions)) {
+    const {tetromino} = this.currentTetromino;
+    const currentPositions = this.currentTetromino.rotatedPositions || tetromino.cellPositions;
+    const rotatedPositions = this.rotateRelativePosition(currentPositions, clockwise);
+    if (!this.canPlaceTetromino({...this.currentTetromino, rotatedPositions})) {
       return false;
     }
 
@@ -647,20 +637,16 @@ export class Grid {
       return null;
     }
 
-    const {shape, centerRow, centerCol} = this.currentTetromino;
-    const rotatedPositions = this.currentTetromino.rotatedPositions || null;
-
     // Find the lowest valid position by moving down until we can't
+    const {centerRow} = this.currentTetromino;
     let newCenterRow = centerRow;
-    while (this.canPlaceTetromino(shape, newCenterRow - 1, centerCol, rotatedPositions)) {
+    while (this.canPlaceTetromino({...this.currentTetromino, centerRow: newCenterRow - 1})) {
       newCenterRow--;
     }
 
     return {
-      shape,
-      centerRow: newCenterRow,
-      centerCol,
-      rotatedPositions
+      ...this.currentTetromino,
+      centerRow: newCenterRow
     };
   }
 
@@ -683,13 +669,7 @@ export class Grid {
     }
 
     // Mark shadow cells (excluding cells that are part of the current tetromino)
-    const shadowPositions = this.getTetrominoPositions(
-      hardDropPos.shape,
-      hardDropPos.centerRow,
-      hardDropPos.centerCol,
-      hardDropPos.rotatedPositions
-    );
-
+    const shadowPositions = this.getTetrominoPositions(hardDropPos);
     for (const {row, col} of shadowPositions) {
       const cellIndex = this.getCellIndex(row, col);
       this.shadowCells.add(cellIndex);
@@ -712,12 +692,10 @@ export class Grid {
       return false;
     }
 
-    const {shape, centerRow, centerCol} = this.currentTetromino;
-    const rotatedPositions = this.currentTetromino.rotatedPositions || null;
-
     // Find the lowest valid position by moving down until we can't
+    const {centerRow} = this.currentTetromino;
     let newCenterRow = centerRow;
-    while (this.canPlaceTetromino(shape, newCenterRow - 1, centerCol, rotatedPositions)) {
+    while (this.canPlaceTetromino({...this.currentTetromino, centerRow: newCenterRow - 1})) {
       newCenterRow--;
     }
 
