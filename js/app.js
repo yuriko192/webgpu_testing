@@ -226,6 +226,14 @@ import { Grid } from './grid.js';
       return;
     }
 
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (grid.moveDown()) {
+        render();
+      }
+      return;
+    }
+
     if (event.key === 'ArrowUp') {
       event.preventDefault();
       if (grid.rotateClockwise()) {

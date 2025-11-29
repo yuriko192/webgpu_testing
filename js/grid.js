@@ -498,6 +498,23 @@ export class Grid {
     return true;
   }
 
+  // Soft drop current tetromino
+  softDrop(){
+    if (!this.currentTetromino) {
+      return false;
+    }
+
+    const {centerRow} = this.currentTetromino;
+    const newCenterRow = centerRow - 1;
+    if (!this.canPlaceTetromino({...this.currentTetromino, centerRow: newCenterRow})) {
+      return false;
+    }
+
+    this.lockDelayStartTime = null;
+    this.currentTetromino.centerRow = newCenterRow;
+    return true;
+  }
+
   // Move falling block left
   moveLeft() {
     return this.moveTetromino(-1);
@@ -506,6 +523,11 @@ export class Grid {
   // Move falling block right
   moveRight() {
     return this.moveTetromino(1);
+  }
+
+  // Move falling block down
+  moveDown() {
+    return this.softDrop();
   }
 
   // Rotate a tetromino's relative positions
