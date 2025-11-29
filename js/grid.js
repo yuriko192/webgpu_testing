@@ -1,4 +1,7 @@
-import {  TETROMINOES } from './tetromino.js';
+import { Tetromino, TETROMINOES } from './tetromino.js';
+
+const STATE_ORDER = ['0', 'R', '2', 'L'];
+
 
 // Function to generate a random color
 function getRandomColor() {
@@ -290,7 +293,13 @@ export class Grid {
       return;
     }
 
-    this.currentTetromino = {tetromino, centerRow, centerCol, rotatedPositions: null};
+    this.currentTetromino = {
+      tetromino,
+      centerRow,
+      centerCol,
+      rotatedPositions: null,
+      rotationState: '0' // Initialize rotation state to spawn (0)
+    };
     this.lockDelayStartTime = null;
     this.canHold = true; // Reset hold flag when spawning new tetromino
     this.updateShadow();
@@ -313,7 +322,13 @@ export class Grid {
         return false;
       }
 
-      this.currentTetromino = {tetromino: this.heldTetromino, centerRow, centerCol, rotatedPositions: null};
+      this.currentTetromino = {
+        tetromino: this.heldTetromino,
+        centerRow,
+        centerCol,
+        rotatedPositions: null,
+        rotationState: '0' // Reset rotation state to spawn (0)
+      };
       this.lockDelayStartTime = null;
       this.updateShadow();
     } else {
@@ -530,6 +545,18 @@ export class Grid {
     return this.softDrop();
   }
 
+  // Get rotation state transition
+  getRotationTransition(fromState, clockwise) {
+    const currentIndex = STATE_ORDER.indexOf(fromState);
+    if (clockwise) {
+      const nextIndex = (currentIndex + 1) % 4;
+      return STATE_ORDER[nextIndex];
+    } else {
+      const nextIndex = (currentIndex - 1 + 4) % 4;
+      return STATE_ORDER[nextIndex];
+    }
+  }
+
   // Rotate a tetromino's relative positions
   rotateRelativePosition(relativePositions, clockwise = true) {
     if (clockwise) {
@@ -541,26 +568,60 @@ export class Grid {
     }
   }
 
-  // Rotate current tetromino
+  // Rotate current tetromino with SRS wall kicks
   rotate(clockwise = true) {
     if (!this.currentTetromino) {
       return false;
     }
 
-    // Check if rotated tetromino can be placed (excluding current tetromino positions)
     const {tetromino} = this.currentTetromino;
-    const currentPositions = this.currentTetromino.rotatedPositions || tetromino.cellPositions;
-    const rotatedPositions = this.rotateRelativePosition(currentPositions, clockwise);
-    if (!this.canPlaceTetromino({...this.currentTetromino, rotatedPositions})) {
+    if (tetromino.shape === 'O') {
       return false;
     }
 
-    this.lockDelayStartTime = null;
-    // Update rotation without committing to grid
-    this.currentTetromino.rotatedPositions = rotatedPositions;
-    this.updateShadow();
+    const kickTable = Tetromino.getKickTable(tetromino.shape);
+    if (!kickTable) {
+      return false;
+    }
 
-    return true;
+    const currentState = this.currentTetromino.rotationState || '0';
+    const nextState = this.getRotationTransition(currentState, clockwise);
+
+    // Get the kick offsets for this transition
+    const transitionKey = `${currentState}${nextState}`;
+    const kickOffsets = kickTable[transitionKey];
+    if (!kickOffsets) {
+      return false;
+    }
+
+    // Try each kick offset
+    const currentPositions = this.currentTetromino.rotatedPositions || tetromino.cellPositions;
+    const rotatedPositions = this.rotateRelativePosition(currentPositions, clockwise);
+    for (const [rowOffset, colOffset] of kickOffsets) {
+      const newCenterRow = this.currentTetromino.centerRow + rowOffset;
+      const newCenterCol = this.currentTetromino.centerCol + colOffset;
+
+      const testState = {
+        ...this.currentTetromino,
+        centerRow: newCenterRow,
+        centerCol: newCenterCol,
+        rotatedPositions: rotatedPositions
+      };
+
+      if (this.canPlaceTetromino(testState)) {
+        // Success! Apply the rotation with this kick offset
+        this.lockDelayStartTime = null;
+        this.currentTetromino.centerRow = newCenterRow;
+        this.currentTetromino.centerCol = newCenterCol;
+        this.currentTetromino.rotatedPositions = rotatedPositions;
+        this.currentTetromino.rotationState = nextState;
+        this.updateShadow();
+        return true;
+      }
+    }
+
+    // All kick attempts failed
+    return false;
   }
 
   // Rotate current tetromino clockwise (convenience method)

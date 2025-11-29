@@ -62,6 +62,45 @@ export class Tetromino {
     return centers;
   })();
 
+  // SRS (Super Rotation System) Kick Tables
+  // Format: [fromState][toState] = array of [rowOffset, colOffset] attempts
+  // States: 0 = spawn, R = right, 2 = 180, L = left
+  static SRS_KICK_TABLES = {
+    // Standard pieces (J, L, S, T, Z)
+    JLSTZ: {
+      '0R': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+      '2R': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+      '0L': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+      '2L': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+      'R0': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+      'R2': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+      'L2': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+      'L0': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+    },
+    // I-piece has different kick table
+    I: {
+      '0R': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+      '2R': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+      '0L': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+      '2L': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+      'R0': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+      'R2': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+      'L2': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+      'L0': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+    }
+  };
+
+  // Get kick table for a piece shape
+  static getKickTable(shape) {
+    if (shape === 'I') {
+      return Tetromino.SRS_KICK_TABLES.I;
+    } else if (shape === 'O') {
+      return null; // O-piece doesn't rotate
+    } else {
+      return Tetromino.SRS_KICK_TABLES.JLSTZ;
+    }
+  }
+
   constructor(shape) {
     this.shape = shape;
     this.cellPositions = Tetromino.CELL_POSITIONS[shape];
