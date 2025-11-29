@@ -1,4 +1,5 @@
 import { Tetromino, TETROMINOES } from './tetromino.js';
+import { Stats } from './stats.js';
 
 const STATE_ORDER = ['0', 'R', '2', 'L'];
 
@@ -52,8 +53,8 @@ export class Grid {
     this.lockDelayMs = lockDelayMs;
     this.lockDelayStartTime = null; // Timestamp when lock delay started
 
-    // Lines cleared counter
-    this.linesCleared = 0;
+    // Stats tracker
+    this.stats = new Stats();
   }
 
   // Helper function to get cell index from row and column
@@ -373,11 +374,7 @@ export class Grid {
     // Clear rows from writeRow to readRow (clamp readRow to valid range)
     const endRow = Math.min(readRow, this.height - 1);
     this.clearRows(writeRow, endRow);
-
-    // Update lines cleared counter
-    this.linesCleared += clearedCount;
-    const linesCounter = document.querySelector('#lines-counter');
-    linesCounter.textContent = this.linesCleared;
+    this.stats.addLinesCleared(clearedCount);
   }
 
   // Main update function that applies all game logic
@@ -477,7 +474,22 @@ export class Grid {
 
   // Get lines cleared count
   getLinesCleared() {
-    return this.linesCleared;
+    return this.stats.getLinesCleared();
+  }
+
+  // Get current score
+  getScore() {
+    return this.stats.getScore();
+  }
+
+  // Get current level
+  getLevel() {
+    return this.stats.getLevel();
+  }
+
+  // Get stats instance
+  getStats() {
+    return this.stats;
   }
 
   // Get all cells that are currently falling (colored cells that can still fall)

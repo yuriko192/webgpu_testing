@@ -276,6 +276,26 @@ import { Grid } from './grid.js';
     }
   });
 
+  // Set up stats UI update callback
+  const levelCounter = document.querySelector('#level-counter');
+  const linesCounter = document.querySelector('#lines-counter');
+  const scoreCounter = document.querySelector('#score-counter');
+
+  function updateStatsDisplay() {
+    if (levelCounter) {
+      levelCounter.textContent = grid.getLevel();
+    }
+    if (linesCounter) {
+      linesCounter.textContent = grid.getLinesCleared();
+    }
+    if (scoreCounter) {
+      scoreCounter.textContent = grid.getScore();
+    }
+  }
+
+  // Set the update callback on stats
+  grid.getStats().setUpdateCallback(updateStatsDisplay);
+
   // Initial render
   grid.spawnTetromino();
   render();
