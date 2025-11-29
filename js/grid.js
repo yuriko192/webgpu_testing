@@ -59,6 +59,11 @@ export class Grid {
     this.currentTetromino = null;
     this.currentTetrominoColor = null;
 
+    // Held tetromino
+    this.heldTetromino = null;
+    this.heldTetrominoColor = null;
+    this.canHold = true; // Flag to prevent holding multiple times per spawn
+
     // Shadow cells for harddrop preview
     this.shadowCells = new Set(); // Set of cell indices that are shadow cells
 
@@ -321,7 +326,48 @@ export class Grid {
     this.currentTetromino = {shape, centerRow, centerCol, rotatedPositions: null};
     this.currentTetrominoColor = color;
     this.lockDelayStartTime = null;
+    this.canHold = true; // Reset hold flag when spawning new tetromino
     this.updateShadow();
+  }
+
+  // Hold the current tetromino and swap with held tetromino if one exists
+  holdTetromino() {
+    if (!this.currentTetromino || !this.canHold) {
+      return false;
+    }
+
+    this.clearShadow();
+    const tempShape = this.currentTetromino.shape;
+    const tempColor = this.currentTetrominoColor;
+
+    if (this.heldTetromino) {
+      // Swap: put held tetromino as current
+      const heldShape = this.heldTetromino;
+      const heldColor = this.heldTetrominoColor;
+
+      const centerCol = Math.floor(this.width / 2);
+      const centerRow = this.topRow;
+
+      if (!this.canPlaceTetromino(heldShape, centerRow, centerCol)){
+        return false;
+      }
+
+      this.currentTetromino = {shape: heldShape, centerRow, centerCol, rotatedPositions: null};
+      this.currentTetrominoColor = heldColor;
+      this.lockDelayStartTime = null;
+      this.updateShadow();
+    } else {
+      // No held piece, just spawn a new one
+      this.currentTetromino = null;
+      this.currentTetrominoColor = null;
+      this.spawnTetromino();
+    }
+
+    // Store the previously current tetromino in hold and update flag
+    this.heldTetromino = tempShape;
+    this.heldTetrominoColor = tempColor;
+    this.canHold = false;
+    return true;
   }
 
   // Clear filled rows and shifting unfilled rows down
@@ -354,6 +400,49 @@ export class Grid {
   // Main update function that applies all game logic
   update() {
     this.applyGravity();
+  }
+
+  // Returns colors array for a small preview grid showing the held tetromino
+  getHeldTetrominoColors() {
+    const PREVIEW_SIZE = 4;
+    const totalCells = PREVIEW_SIZE * PREVIEW_SIZE;
+    const colors = new Float32Array(totalCells * 4); // 4 floats per color (RGBA)
+
+    // Initialize all cells to dark gray/black #191919
+    for (let i = 0; i < totalCells; i++) {
+      colors[i * 4 + 0] = 0.1; // R
+      colors[i * 4 + 1] = 0.1; // G
+      colors[i * 4 + 2] = 0.1; // B
+      colors[i * 4 + 3] = 1.0; // A
+    }
+
+    if (!this.heldTetromino) {
+      return colors;
+    }
+
+    const relativePositions = TETROMINOES[this.heldTetromino];
+
+    // Render tetromino starting from bottom-left (0, 0)
+    // Offset by 1 to offset negative Tetromino relative positions
+    const startRow = 1;
+    const startCol = 1;
+
+    for (const [dr, dc] of relativePositions) {
+      const row = startRow + dr;
+      const col = startCol + dc;
+
+      // Check bounds
+      if (row >= 0 && row < PREVIEW_SIZE && col >= 0 && col < PREVIEW_SIZE) {
+        const cellIndex = row * PREVIEW_SIZE + col;
+        const colorIndex = cellIndex * 4;
+        colors[colorIndex + 0] = this.heldTetrominoColor[0]; // R
+        colors[colorIndex + 1] = this.heldTetrominoColor[1]; // G
+        colors[colorIndex + 2] = this.heldTetrominoColor[2]; // B
+        colors[colorIndex + 3] = this.heldTetrominoColor[3]; // A
+      }
+    }
+
+    return colors;
   }
 
   // Get the grid colors array (for WebGPU buffer updates)

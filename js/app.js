@@ -1,7 +1,8 @@
 import { Grid } from './grid.js';
 
 (async () => {
-  const canvas = document.querySelector('canvas');
+  const canvas = document.querySelector('#main-canvas');
+  const holdCanvas = document.querySelector('#hold-canvas');
 
   if (!navigator.gpu) {
     console.log('WebGPU is not supported in this browser.');
@@ -77,11 +78,52 @@ import { Grid } from './grid.js';
     }
   });
 
+  // Set up hold canvas
+  const holdContext = holdCanvas.getContext('webgpu');
+  holdContext.configure({
+    device: device,
+    format: canvasFormat,
+  });
+
   // Create grid instance
   const GRID_WIDTH = 10;
   const GRID_HEIGHT = 20;
   const grid = new Grid(GRID_WIDTH, GRID_HEIGHT);
   const TOTAL_CELLS = grid.totalCells;
+
+  // Hold canvas setup (4x4 preview grid)
+  const HOLD_PREVIEW_SIZE = 4;
+  const HOLD_TOTAL_CELLS = HOLD_PREVIEW_SIZE * HOLD_PREVIEW_SIZE;
+  const holdUniformArray = new Float32Array([HOLD_PREVIEW_SIZE, HOLD_PREVIEW_SIZE]);
+  const holdUniformBuffer = device.createBuffer({
+    label: "Hold Grid Uniforms",
+    size: holdUniformArray.byteLength,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(holdUniformBuffer, 0, holdUniformArray);
+
+  const holdCellColors = grid.getHeldTetrominoColors();
+  const holdCellColorsBuffer = device.createBuffer({
+    label: "Hold Cell Colors",
+    size: holdCellColors.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(holdCellColorsBuffer, 0, holdCellColors);
+
+  const holdBindGroup = device.createBindGroup({
+    label: "Hold cell renderer bind group",
+    layout: cellPipeline.getBindGroupLayout(0),
+    entries: [
+      {
+        binding: 0,
+        resource: {buffer: holdUniformBuffer}
+      },
+      {
+        binding: 1,
+        resource: {buffer: holdCellColorsBuffer}
+      }
+    ],
+  });
 
   // Create a uniform buffer that describes the grid.
   const uniformArray = new Float32Array([grid.getWidth(), grid.getHeight()]);
@@ -139,6 +181,32 @@ import { Grid } from './grid.js';
     device.queue.submit([encoder.finish()]);
   }
 
+  // Function to render hold canvas (only when held tetromino changes)
+  function renderHold() {
+    const currentHeld = grid.heldTetromino;
+
+    // Update hold color buffer
+    const holdColors = grid.getHeldTetrominoColors();
+    device.queue.writeBuffer(holdCellColorsBuffer, 0, holdColors);
+
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{
+        view: holdContext.getCurrentTexture().createView(),
+        loadOp: 'clear',
+        storeOp: 'store',
+      }]
+    });
+
+    pass.setPipeline(cellPipeline);
+    pass.setVertexBuffer(0, vertexBuffer);
+    pass.setBindGroup(0, holdBindGroup);
+    pass.draw(vertices.length / 2, HOLD_TOTAL_CELLS);
+
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+  }
+
   // Add keyboard event listeners for arrow keys
   document.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowLeft') {
@@ -188,11 +256,21 @@ import { Grid } from './grid.js';
       }
       return;
     }
+
+    if (event.key === 'c' || event.key === 'C') {
+      event.preventDefault();
+      if (grid.holdTetromino()) {
+        render();
+        renderHold(); // Update hold canvas when holding
+      }
+      return;
+    }
   });
 
   // Initial render
   grid.spawnTetromino();
   render();
+  renderHold(); // Initial hold canvas render
 
   setInterval(() => {
     grid.update();
