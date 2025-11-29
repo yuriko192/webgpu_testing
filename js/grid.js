@@ -20,10 +20,10 @@ const TETROMINO_COLORS = {
   L: [1.0, 0.647, 0.0, 1.0]  // Orange
 };
 
-// Pre-calculated centers of all tetromino shapes (midpoint between min and max positions)
-const TETROMINO_CENTERS = (() => {
-  const centers = {};
-  for (const [shape,positions] of Object.entries(TETROMINOES)) {
+// Pre-calculated bounding boxes of all tetromino shapes
+const TETROMINO_BOUNDING_BOXES = (() => {
+  const boundingBoxes = {};
+  for (const [shape, positions] of Object.entries(TETROMINOES)) {
     let minRow = Infinity;
     let maxRow = -Infinity;
     let minCol = Infinity;
@@ -36,9 +36,26 @@ const TETROMINO_CENTERS = (() => {
       maxCol = Math.max(maxCol, col);
     }
 
+    boundingBoxes[shape] = {
+      minRow,
+      maxRow,
+      minCol,
+      maxCol,
+      width: maxCol - minCol + 1,
+      height: maxRow - minRow + 1
+    };
+  }
+  return boundingBoxes;
+})();
+
+// Pre-calculated centers of all tetromino shapes (midpoint between min and max positions)
+const TETROMINO_CENTERS = (() => {
+  const centers = {};
+  for (const shape of Object.keys(TETROMINOES)) {
+    const bbox = TETROMINO_BOUNDING_BOXES[shape];
     centers[shape] = [
-      (minRow + maxRow) / 2,
-      (minCol + maxCol) / 2
+      (bbox.minRow + bbox.maxRow) / 2,
+      (bbox.minCol + bbox.maxCol) / 2
     ];
   }
   return centers;
@@ -58,11 +75,6 @@ function getRandomColor() {
     Math.random(), // B
     1.0            // A
   ];
-}
-
-// Returns the center as the midpoint between min and max positions in a Tetromino
-function getTetrominoCenter(shape) {
-  return TETROMINO_CENTERS[shape] || [0, 0];
 }
 
 export class Grid {
