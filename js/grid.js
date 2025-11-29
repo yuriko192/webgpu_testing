@@ -20,6 +20,30 @@ const TETROMINO_COLORS = {
   L: [1.0, 0.647, 0.0, 1.0]  // Orange
 };
 
+// Pre-calculated centers of all tetromino shapes (midpoint between min and max positions)
+const TETROMINO_CENTERS = (() => {
+  const centers = {};
+  for (const [shape,positions] of Object.entries(TETROMINOES)) {
+    let minRow = Infinity;
+    let maxRow = -Infinity;
+    let minCol = Infinity;
+    let maxCol = -Infinity;
+
+    for (const [row, col] of positions) {
+      minRow = Math.min(minRow, row);
+      maxRow = Math.max(maxRow, row);
+      minCol = Math.min(minCol, col);
+      maxCol = Math.max(maxCol, col);
+    }
+
+    centers[shape] = [
+      (minRow + maxRow) / 2,
+      (minCol + maxCol) / 2
+    ];
+  }
+  return centers;
+})();
+
 // Function to get standard Tetris color for a tetromino shape
 // Default to gray if shape not found
 function getTetrominoColor(shape) {
@@ -34,6 +58,11 @@ function getRandomColor() {
     Math.random(), // B
     1.0            // A
   ];
+}
+
+// Returns the center as the midpoint between min and max positions in a Tetromino
+function getTetrominoCenter(shape) {
+  return TETROMINO_CENTERS[shape] || [0, 0];
 }
 
 export class Grid {
@@ -171,7 +200,7 @@ export class Grid {
   }
 
   // Clear rows from startRow to endRow (inclusive) with empty cells
-  clearRows(startRow, endRow = this.height-1) {
+  clearRows(startRow, endRow = this.height - 1) {
     for (let row = startRow; row <= endRow; row++) {
       const rowStartCellIndex = row * this.width;
       for (let col = 0; col < this.width; col++) {
@@ -348,7 +377,7 @@ export class Grid {
       const centerCol = Math.floor(this.width / 2);
       const centerRow = this.topRow;
 
-      if (!this.canPlaceTetromino(heldShape, centerRow, centerCol)){
+      if (!this.canPlaceTetromino(heldShape, centerRow, centerCol)) {
         return false;
       }
 
@@ -637,7 +666,7 @@ export class Grid {
 
     // Don't show shadow if it's at the same position as current tetromino
     if (hardDropPos.centerRow === this.currentTetromino.centerRow &&
-        hardDropPos.centerCol === this.currentTetromino.centerCol) {
+      hardDropPos.centerCol === this.currentTetromino.centerCol) {
       return;
     }
 
