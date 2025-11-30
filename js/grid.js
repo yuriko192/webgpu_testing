@@ -1,5 +1,5 @@
-import { Tetromino, TETROMINOES } from './tetromino.js';
-import { Stats } from './stats.js';
+import {Tetromino, TETROMINOES} from './tetromino.js';
+import {Stats} from './stats.js';
 
 const STATE_ORDER = ['0', 'R', '2', 'L'];
 
@@ -15,11 +15,12 @@ function getRandomColor() {
 }
 
 export class Grid {
-  constructor(width = 10, height = 20, lockDelayMs = 500) {
+  constructor(width = 10, height = 20, previewGridSize = 4, lockDelayMs = 500,) {
     this.width = width;
     this.height = height;
     this.topRow = height - 1;
     this.totalCells = width * height;
+    this.previewGridSize = previewGridSize;
 
     // Initialize all cells to gray
     this.cellColors = new Float32Array(this.totalCells * 4); // 4 floats per color (RGBA)
@@ -401,18 +402,32 @@ export class Grid {
     this.applyGravity();
   }
 
+  // Returns the center offset for the held tetromino in the preview grid
+  getHoldTetriminoCenter() {
+    if (!this.heldTetromino) {
+      return new Float32Array([0.0, 0.0]);
+    }
+
+    // Calculate offset needed to center the tetromino in the grid
+    const [tetrominoCenterRow, tetrominoCenterCol] = this.heldTetromino.center;
+    const gridCenter = (this.previewGridSize - 1) / 2;
+    const offsetRow = gridCenter - tetrominoCenterRow;
+    const offsetCol = gridCenter - tetrominoCenterCol;
+
+    return new Float32Array([offsetCol, offsetRow]);
+  }
+
   // Returns colors array for a small preview grid showing the held tetromino
   getHeldTetrominoColors() {
-    const PREVIEW_SIZE = 4;
-    const totalCells = PREVIEW_SIZE * PREVIEW_SIZE;
+    const totalCells = this.previewGridSize * this.previewGridSize;
     const colors = new Float32Array(totalCells * 4); // 4 floats per color (RGBA)
 
     // Initialize all cells to dark gray/black #191919
     for (let i = 0; i < totalCells; i++) {
-      colors[i * 4 + 0] = 0.1; // R
-      colors[i * 4 + 1] = 0.1; // G
-      colors[i * 4 + 2] = 0.1; // B
-      colors[i * 4 + 3] = 1.0; // A
+      colors[i * 4 + 0] = 0.0; // R
+      colors[i * 4 + 1] = 0.0; // G
+      colors[i * 4 + 2] = 0.0; // B
+      colors[i * 4 + 3] = 0.0; // A
     }
 
     if (!this.heldTetromino) {
@@ -431,8 +446,8 @@ export class Grid {
       const col = startCol + dc;
 
       // Check bounds
-      if (row >= 0 && row < PREVIEW_SIZE && col >= 0 && col < PREVIEW_SIZE) {
-        const cellIndex = row * PREVIEW_SIZE + col;
+      if (row >= 0 && row < this.previewGridSize && col >= 0 && col < this.previewGridSize) {
+        const cellIndex = row * this.previewGridSize + col;
         const colorIndex = cellIndex * 4;
         colors[colorIndex + 0] = this.heldTetromino.color[0]; // R
         colors[colorIndex + 1] = this.heldTetromino.color[1]; // G
@@ -560,7 +575,7 @@ export class Grid {
   }
 
   // Soft drop current tetromino
-  softDrop(){
+  softDrop() {
     if (!this.currentTetromino) {
       return false;
     }

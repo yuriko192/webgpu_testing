@@ -55,8 +55,8 @@ export class Tetromino {
     for (const shape of Object.keys(Tetromino.CELL_POSITIONS)) {
       const bbox = Tetromino.BOUNDING_BOXES[shape];
       centers[shape] = [
-        (bbox.minRow + bbox.maxRow) / 2,
-        (bbox.minCol + bbox.maxCol) / 2
+        (bbox.height / 2) + bbox.minRow + 0.5,
+        (bbox.width / 2) + bbox.minCol + 0.5
       ];
     }
     return centers;

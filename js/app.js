@@ -4,14 +4,14 @@ import {Renderer, vertices} from './renderer.js';
 // Create grid instance
 const GRID_WIDTH = 10;
 const GRID_HEIGHT = 20;
-const grid = new Grid(GRID_WIDTH, GRID_HEIGHT);
+const PREVIEW_GRID_SIZE = 4;
+
+const grid = new Grid(GRID_WIDTH, GRID_HEIGHT, PREVIEW_GRID_SIZE);
+
 const TOTAL_CELLS = grid.totalCells;
+const HOLD_TOTAL_CELLS = grid.previewGridSize * grid.previewGridSize;
 
-// Hold canvas setup (4x4 preview grid)
-const HOLD_PREVIEW_SIZE = 4;
-const HOLD_TOTAL_CELLS = HOLD_PREVIEW_SIZE * HOLD_PREVIEW_SIZE;
-
-function createBuffersAndBindGroup(renderer, uniformArray, cellColors, canvas, labels) {
+function createBuffersAndBindGroup(renderer, uniformArray, cellColors, centerOffset, canvas, labels) {
   const context = canvas.getContext('webgpu');
   context.configure({
     device: renderer.device,
@@ -30,7 +30,12 @@ function createBuffersAndBindGroup(renderer, uniformArray, cellColors, canvas, l
     size: cellColors.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
-  renderer.device.queue.writeBuffer(cellColorsBuffer, 0, cellColors);
+
+  const centerOffsetBuffer = renderer.device.createBuffer({
+    label: labels.centerOffset,
+    size: centerOffset.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
 
   const bindGroup = renderer.device.createBindGroup({
     label: labels.bindGroup,
@@ -43,6 +48,10 @@ function createBuffersAndBindGroup(renderer, uniformArray, cellColors, canvas, l
       {
         binding: 1,
         resource: {buffer: cellColorsBuffer}
+      },
+      {
+        binding: 2,
+        resource: {buffer: centerOffsetBuffer}
       }
     ],
   });
@@ -51,6 +60,7 @@ function createBuffersAndBindGroup(renderer, uniformArray, cellColors, canvas, l
     context,
     cellColorsBuffer,
     bindGroup,
+    centerOffsetBuffer,
   };
 }
 
@@ -58,14 +68,17 @@ function createMainBuffersAndBindGroup(renderer) {
   const canvas = document.querySelector('#main-canvas');
   const uniformArray = new Float32Array([grid.getWidth(), grid.getHeight()]);
   const cellColors = grid.getCellColors();
+  const centerOffset = new Float32Array([0.0, 0.0]);
   return createBuffersAndBindGroup(
     renderer,
     uniformArray,
     cellColors,
+    centerOffset,
     canvas,
     {
       uniform: "Grid Uniforms",
       cellColors: "Cell Colors",
+      centerOffset: "Center Offset",
       bindGroup: "Cell renderer bind group"
     }
   );
@@ -73,16 +86,19 @@ function createMainBuffersAndBindGroup(renderer) {
 
 function createHoldBuffersAndBindGroup(renderer) {
   const holdCanvas = document.querySelector('#hold-canvas');
-  const uniformArray = new Float32Array([HOLD_PREVIEW_SIZE, HOLD_PREVIEW_SIZE]);
+  const uniformArray = new Float32Array([grid.previewGridSize, grid.previewGridSize]);
   const cellColors = grid.getHeldTetrominoColors();
+  const centerOffset = new Float32Array([0.0, 0.0]);
   return createBuffersAndBindGroup(
     renderer,
     uniformArray,
     cellColors,
+    centerOffset,
     holdCanvas,
     {
       uniform: "Hold Grid Uniforms",
       cellColors: "Hold Cell Colors",
+      centerOffset: "Hold Center Offset",
       bindGroup: "Hold cell renderer bind group"
     }
   );
@@ -92,12 +108,19 @@ function createHoldBuffersAndBindGroup(renderer) {
   const renderer = new Renderer();
   await renderer.initialize();
 
-  const {context, cellColorsBuffer, bindGroup} = createMainBuffersAndBindGroup(renderer);
-  const {context: holdContext, cellColorsBuffer: holdCellColorsBuffer, bindGroup: holdBindGroup} = createHoldBuffersAndBindGroup(renderer);
+  const {context, cellColorsBuffer, bindGroup, centerOffsetBuffer} = createMainBuffersAndBindGroup(renderer);
+  const {
+    context: holdContext,
+    cellColorsBuffer: holdCellColorsBuffer,
+    bindGroup: holdBindGroup,
+    centerOffsetBuffer: holdCenterOffsetBuffer
+  } = createHoldBuffersAndBindGroup(renderer);
 
   // Function to render a frame
   function render() {
     renderer.device.queue.writeBuffer(cellColorsBuffer, 0, grid.getCellColors());
+    const offset =  new Float32Array([0.0, 0.0]);
+    renderer.device.queue.writeBuffer(centerOffsetBuffer, 0, offset);
     const encoder = renderer.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
@@ -120,6 +143,7 @@ function createHoldBuffersAndBindGroup(renderer) {
   // Function to render hold canvas (only when held tetromino changes)
   function renderHold() {
     renderer.device.queue.writeBuffer(holdCellColorsBuffer, 0, grid.getHeldTetrominoColors());
+    renderer.device.queue.writeBuffer(holdCenterOffsetBuffer, 0, grid.getHoldTetriminoCenter());
     const encoder = renderer.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{

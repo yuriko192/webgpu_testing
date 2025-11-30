@@ -10,6 +10,7 @@ struct VertexOutput {
 
 @group(0) @binding(0) var<uniform> grid: vec2f;
 @group(0) @binding(1) var<storage, read> cellColors: array<vec4f>;
+@group(0) @binding(2) var<storage, read> centerOffset: vec2f;
 
 @vertex
 fn vertexMain(
@@ -17,7 +18,7 @@ fn vertexMain(
 ) -> VertexOutput{
   let i = f32(input.instance);
   let cellIndex = vec2f(i % grid.x, floor(i / grid.x));
-  let offset = cellIndex/grid*2;
+  let offset = (cellIndex+centerOffset)/grid*2 ;
   let gridPos = (input.pos+1)/grid - 1 + offset;
 
   var output: VertexOutput;
