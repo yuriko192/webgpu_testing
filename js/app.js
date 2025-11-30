@@ -1,4 +1,5 @@
 import {Grid} from './grid.js';
+import {Renderer, vertices} from './renderer.js';
 
 // Create grid instance
 const GRID_WIDTH = 10;
@@ -10,43 +11,30 @@ const TOTAL_CELLS = grid.totalCells;
 const HOLD_PREVIEW_SIZE = 4;
 const HOLD_TOTAL_CELLS = HOLD_PREVIEW_SIZE * HOLD_PREVIEW_SIZE;
 
-// Vertices for rendering a cell (2 triangles per cell)
-// Cell have inner padding of 20%
-const vertices = new Float32Array([
-//   X,    Y,
-  -0.8, -0.8, // Triangle 1 (Blue)
-  0.8, -0.8,
-  0.8, 0.8,
-
-  -0.8, -0.8, // Triangle 2 (Red)
-  0.8, 0.8,
-  -0.8, 0.8,
-]);
-
-function createBuffersAndBindGroup(device, cellPipeline, uniformArray, cellColors, canvas, labels) {
+function createBuffersAndBindGroup(renderer, uniformArray, cellColors, canvas, labels) {
   const context = canvas.getContext('webgpu');
   context.configure({
-    device: device,
+    device: renderer.device,
     format: navigator.gpu.getPreferredCanvasFormat(),
   });
 
-  const uniformBuffer = device.createBuffer({
+  const uniformBuffer = renderer.device.createBuffer({
     label: labels.uniform,
     size: uniformArray.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+  renderer.device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
 
-  const cellColorsBuffer = device.createBuffer({
+  const cellColorsBuffer = renderer.device.createBuffer({
     label: labels.cellColors,
     size: cellColors.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
-  device.queue.writeBuffer(cellColorsBuffer, 0, cellColors);
+  renderer.device.queue.writeBuffer(cellColorsBuffer, 0, cellColors);
 
-  const bindGroup = device.createBindGroup({
+  const bindGroup = renderer.device.createBindGroup({
     label: labels.bindGroup,
-    layout: cellPipeline.getBindGroupLayout(0),
+    layout: renderer.renderPipeline.getBindGroupLayout(0),
     entries: [
       {
         binding: 0,
@@ -66,13 +54,12 @@ function createBuffersAndBindGroup(device, cellPipeline, uniformArray, cellColor
   };
 }
 
-function createMainBuffersAndBindGroup(device, cellPipeline,) {
+function createMainBuffersAndBindGroup(renderer) {
   const canvas = document.querySelector('#main-canvas');
   const uniformArray = new Float32Array([grid.getWidth(), grid.getHeight()]);
   const cellColors = grid.getCellColors();
   return createBuffersAndBindGroup(
-    device,
-    cellPipeline,
+    renderer,
     uniformArray,
     cellColors,
     canvas,
@@ -84,13 +71,12 @@ function createMainBuffersAndBindGroup(device, cellPipeline,) {
   );
 }
 
-function createHoldBuffersAndBindGroup(device, cellPipeline) {
+function createHoldBuffersAndBindGroup(renderer) {
   const holdCanvas = document.querySelector('#hold-canvas');
   const uniformArray = new Float32Array([HOLD_PREVIEW_SIZE, HOLD_PREVIEW_SIZE]);
   const cellColors = grid.getHeldTetrominoColors();
   return createBuffersAndBindGroup(
-    device,
-    cellPipeline,
+    renderer,
     uniformArray,
     cellColors,
     holdCanvas,
@@ -102,104 +88,17 @@ function createHoldBuffersAndBindGroup(device, cellPipeline) {
   );
 }
 
-async function initializeRendering() {
-
-  if (!navigator.gpu) {
-    console.log('WebGPU is not supported in this browser.');
-    throw new Error('WebGPU is not supported in this browser.');
-  } else {
-    console.log('WebGPU is supported in this browser.');
-  }
-
-  const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) throw new Error('No suitable GPU adapter found.');
-
-  const device = await adapter.requestDevice();
-
-
-  const vertexBuffer = device.createBuffer({
-    label: 'cell vertices',
-    size: vertices.byteLength,
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(vertexBuffer, 0, vertices);
-
-  const vertexBufferLayout = {
-    arrayStride: 8,
-    attributes: [
-      {
-        format: 'float32x2',
-        offset: 0,
-        shaderLocation: 0,
-      },
-    ],
-  }
-
-  // Load shader code from external file
-  const shaderResponse = await fetch('/shaders/cell.wgsl');
-  const shaderCode = await shaderResponse.text();
-
-  const cellShaderModule = device.createShaderModule({
-    label: "Cell shader",
-    code: shaderCode,
-  })
-
-  const cellPipeline = device.createRenderPipeline({
-    label: "Cell pipeline",
-    layout: "auto",
-    vertex: {
-      module: cellShaderModule,
-      entryPoint: "vertexMain",
-      buffers: [vertexBufferLayout]
-    },
-    fragment: {
-      module: cellShaderModule,
-      entryPoint: "fragmentMain",
-      targets: [{
-        format: navigator.gpu.getPreferredCanvasFormat()
-      }]
-    }
-  });
-
-  const {context, cellColorsBuffer, bindGroup} =
-    createMainBuffersAndBindGroup(device, cellPipeline);
-  const {context: holdContext, cellColorsBuffer: holdCellColorsBuffer, bindGroup: holdBindGroup} =
-    createHoldBuffersAndBindGroup(device, cellPipeline);
-
-  return {
-    device,
-    vertexBuffer,
-    cellPipeline,
-
-    context,
-    cellColorsBuffer,
-    bindGroup,
-
-    holdContext,
-    holdCellColorsBuffer,
-    holdBindGroup,
-  };
-}
-
 (async () => {
-  const {
-    device,
-    vertexBuffer,
-    cellPipeline,
+  const renderer = new Renderer();
+  await renderer.initialize();
 
-    context,
-    cellColorsBuffer,
-    bindGroup,
-
-    holdContext,
-    holdCellColorsBuffer,
-    holdBindGroup,
-  } = await initializeRendering();
+  const {context, cellColorsBuffer, bindGroup} = createMainBuffersAndBindGroup(renderer);
+  const {context: holdContext, cellColorsBuffer: holdCellColorsBuffer, bindGroup: holdBindGroup} = createHoldBuffersAndBindGroup(renderer);
 
   // Function to render a frame
   function render() {
-    device.queue.writeBuffer(cellColorsBuffer, 0, grid.getCellColors());
-    const encoder = device.createCommandEncoder();
+    renderer.device.queue.writeBuffer(cellColorsBuffer, 0, grid.getCellColors());
+    const encoder = renderer.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
@@ -209,19 +108,19 @@ async function initializeRendering() {
       }]
     });
 
-    pass.setPipeline(cellPipeline);
-    pass.setVertexBuffer(0, vertexBuffer);
+    pass.setPipeline(renderer.renderPipeline);
+    pass.setVertexBuffer(0, renderer.vertexBuffer);
     pass.setBindGroup(0, bindGroup);
     pass.draw(vertices.length / 2, TOTAL_CELLS);
 
     pass.end();
-    device.queue.submit([encoder.finish()]);
+    renderer.device.queue.submit([encoder.finish()]);
   }
 
   // Function to render hold canvas (only when held tetromino changes)
   function renderHold() {
-    device.queue.writeBuffer(holdCellColorsBuffer, 0, grid.getHeldTetrominoColors());
-    const encoder = device.createCommandEncoder();
+    renderer.device.queue.writeBuffer(holdCellColorsBuffer, 0, grid.getHeldTetrominoColors());
+    const encoder = renderer.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
         view: holdContext.getCurrentTexture().createView(),
@@ -230,13 +129,13 @@ async function initializeRendering() {
       }]
     });
 
-    pass.setPipeline(cellPipeline);
-    pass.setVertexBuffer(0, vertexBuffer);
+    pass.setPipeline(renderer.renderPipeline);
+    pass.setVertexBuffer(0, renderer.vertexBuffer);
     pass.setBindGroup(0, holdBindGroup);
     pass.draw(vertices.length / 2, HOLD_TOTAL_CELLS);
 
     pass.end();
-    device.queue.submit([encoder.finish()]);
+    renderer.device.queue.submit([encoder.finish()]);
   }
 
   // Add keyboard event listeners for arrow keys
