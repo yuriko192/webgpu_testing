@@ -1,8 +1,108 @@
-import { Grid } from './grid.js';
+import {Grid} from './grid.js';
 
-(async () => {
+// Create grid instance
+const GRID_WIDTH = 10;
+const GRID_HEIGHT = 20;
+const grid = new Grid(GRID_WIDTH, GRID_HEIGHT);
+const TOTAL_CELLS = grid.totalCells;
+
+// Hold canvas setup (4x4 preview grid)
+const HOLD_PREVIEW_SIZE = 4;
+const HOLD_TOTAL_CELLS = HOLD_PREVIEW_SIZE * HOLD_PREVIEW_SIZE;
+
+// Vertices for rendering a cell (2 triangles per cell)
+// Cell have inner padding of 20%
+const vertices = new Float32Array([
+//   X,    Y,
+  -0.8, -0.8, // Triangle 1 (Blue)
+  0.8, -0.8,
+  0.8, 0.8,
+
+  -0.8, -0.8, // Triangle 2 (Red)
+  0.8, 0.8,
+  -0.8, 0.8,
+]);
+
+function createBuffersAndBindGroup(device, cellPipeline, uniformArray, cellColors, canvas, labels) {
+  const context = canvas.getContext('webgpu');
+  context.configure({
+    device: device,
+    format: navigator.gpu.getPreferredCanvasFormat(),
+  });
+
+  const uniformBuffer = device.createBuffer({
+    label: labels.uniform,
+    size: uniformArray.byteLength,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+
+  const cellColorsBuffer = device.createBuffer({
+    label: labels.cellColors,
+    size: cellColors.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(cellColorsBuffer, 0, cellColors);
+
+  const bindGroup = device.createBindGroup({
+    label: labels.bindGroup,
+    layout: cellPipeline.getBindGroupLayout(0),
+    entries: [
+      {
+        binding: 0,
+        resource: {buffer: uniformBuffer}
+      },
+      {
+        binding: 1,
+        resource: {buffer: cellColorsBuffer}
+      }
+    ],
+  });
+
+  return {
+    context,
+    cellColorsBuffer,
+    bindGroup,
+  };
+}
+
+function createMainBuffersAndBindGroup(device, cellPipeline,) {
   const canvas = document.querySelector('#main-canvas');
+  const uniformArray = new Float32Array([grid.getWidth(), grid.getHeight()]);
+  const cellColors = grid.getCellColors();
+  return createBuffersAndBindGroup(
+    device,
+    cellPipeline,
+    uniformArray,
+    cellColors,
+    canvas,
+    {
+      uniform: "Grid Uniforms",
+      cellColors: "Cell Colors",
+      bindGroup: "Cell renderer bind group"
+    }
+  );
+}
+
+function createHoldBuffersAndBindGroup(device, cellPipeline) {
   const holdCanvas = document.querySelector('#hold-canvas');
+  const uniformArray = new Float32Array([HOLD_PREVIEW_SIZE, HOLD_PREVIEW_SIZE]);
+  const cellColors = grid.getHeldTetrominoColors();
+  return createBuffersAndBindGroup(
+    device,
+    cellPipeline,
+    uniformArray,
+    cellColors,
+    holdCanvas,
+    {
+      uniform: "Hold Grid Uniforms",
+      cellColors: "Hold Cell Colors",
+      bindGroup: "Hold cell renderer bind group"
+    }
+  );
+}
+
+async function initializeRendering() {
 
   if (!navigator.gpu) {
     console.log('WebGPU is not supported in this browser.');
@@ -16,23 +116,6 @@ import { Grid } from './grid.js';
 
   const device = await adapter.requestDevice();
 
-  const context = canvas.getContext('webgpu');
-  const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
-  context.configure({
-    device: device,
-    format: canvasFormat,
-  })
-
-  const vertices = new Float32Array([
-//   X,    Y,
-    -0.8, -0.8, // Triangle 1 (Blue)
-    0.8, -0.8,
-    0.8, 0.8,
-
-    -0.8, -0.8, // Triangle 2 (Red)
-    0.8, 0.8,
-    -0.8, 0.8,
-  ]);
 
   const vertexBuffer = device.createBuffer({
     label: 'cell vertices',
@@ -73,102 +156,55 @@ import { Grid } from './grid.js';
       module: cellShaderModule,
       entryPoint: "fragmentMain",
       targets: [{
-        format: canvasFormat
+        format: navigator.gpu.getPreferredCanvasFormat()
       }]
     }
   });
 
-  // Set up hold canvas
-  const holdContext = holdCanvas.getContext('webgpu');
-  holdContext.configure({
-    device: device,
-    format: canvasFormat,
-  });
+  const {context, cellColorsBuffer, bindGroup} =
+    createMainBuffersAndBindGroup(device, cellPipeline);
+  const {context: holdContext, cellColorsBuffer: holdCellColorsBuffer, bindGroup: holdBindGroup} =
+    createHoldBuffersAndBindGroup(device, cellPipeline);
 
-  // Create grid instance
-  const GRID_WIDTH = 10;
-  const GRID_HEIGHT = 20;
-  const grid = new Grid(GRID_WIDTH, GRID_HEIGHT);
-  const TOTAL_CELLS = grid.totalCells;
+  return {
+    device,
+    vertexBuffer,
+    cellPipeline,
 
-  // Hold canvas setup (4x4 preview grid)
-  const HOLD_PREVIEW_SIZE = 4;
-  const HOLD_TOTAL_CELLS = HOLD_PREVIEW_SIZE * HOLD_PREVIEW_SIZE;
-  const holdUniformArray = new Float32Array([HOLD_PREVIEW_SIZE, HOLD_PREVIEW_SIZE]);
-  const holdUniformBuffer = device.createBuffer({
-    label: "Hold Grid Uniforms",
-    size: holdUniformArray.byteLength,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(holdUniformBuffer, 0, holdUniformArray);
+    context,
+    cellColorsBuffer,
+    bindGroup,
 
-  const holdCellColors = grid.getHeldTetrominoColors();
-  const holdCellColorsBuffer = device.createBuffer({
-    label: "Hold Cell Colors",
-    size: holdCellColors.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(holdCellColorsBuffer, 0, holdCellColors);
+    holdContext,
+    holdCellColorsBuffer,
+    holdBindGroup,
+  };
+}
 
-  const holdBindGroup = device.createBindGroup({
-    label: "Hold cell renderer bind group",
-    layout: cellPipeline.getBindGroupLayout(0),
-    entries: [
-      {
-        binding: 0,
-        resource: {buffer: holdUniformBuffer}
-      },
-      {
-        binding: 1,
-        resource: {buffer: holdCellColorsBuffer}
-      }
-    ],
-  });
+(async () => {
+  const {
+    device,
+    vertexBuffer,
+    cellPipeline,
 
-  // Create a uniform buffer that describes the grid.
-  const uniformArray = new Float32Array([grid.getWidth(), grid.getHeight()]);
-  const uniformBuffer = device.createBuffer({
-    label: "Grid Uniforms",
-    size: uniformArray.byteLength,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+    context,
+    cellColorsBuffer,
+    bindGroup,
 
-  // Create storage buffer for cell colors (RGBA per cell)
-  const cellColors = grid.getCellColors();
-  const cellColorsBuffer = device.createBuffer({
-    label: "Cell Colors",
-    size: cellColors.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(cellColorsBuffer, 0, cellColors);
-
-  const bindGroup = device.createBindGroup({
-    label: "Cell renderer bind group",
-    layout: cellPipeline.getBindGroupLayout(0),
-    entries: [
-      {
-        binding: 0,
-        resource: {buffer: uniformBuffer}
-      },
-      {
-        binding: 1,
-        resource: {buffer: cellColorsBuffer}
-      }
-    ],
-  });
+    holdContext,
+    holdCellColorsBuffer,
+    holdBindGroup,
+  } = await initializeRendering();
 
   // Function to render a frame
   function render() {
-    // Update grid color buffer
     device.queue.writeBuffer(cellColorsBuffer, 0, grid.getCellColors());
-
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
         loadOp: 'clear',
-        clearValue: { r: 0.6, g: 0.6, b: 0.6, a: 1.0 },
+        clearValue: {r: 0.6, g: 0.6, b: 0.6, a: 1.0},
         storeOp: 'store',
       }]
     });
@@ -184,12 +220,7 @@ import { Grid } from './grid.js';
 
   // Function to render hold canvas (only when held tetromino changes)
   function renderHold() {
-    const currentHeld = grid.heldTetromino;
-
-    // Update hold color buffer
-    const holdColors = grid.getHeldTetrominoColors();
-    device.queue.writeBuffer(holdCellColorsBuffer, 0, holdColors);
-
+    device.queue.writeBuffer(holdCellColorsBuffer, 0, grid.getHeldTetrominoColors());
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
@@ -304,5 +335,5 @@ import { Grid } from './grid.js';
   setInterval(() => {
     grid.update();
     render();
-  }, 1000/10);
+  }, 1000 / 10);
 })();
